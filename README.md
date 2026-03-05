@@ -118,6 +118,15 @@ The Anyway OpenTelemetry tracing plugin is configured to capture:
 
 Traces export to `https://trace-dev-collector.anyway.sh` with full content capture enabled.
 
+### 5. Animoca Brands -- Best Multi-Agent System ($1,000 USD)
+
+Face Library is a coordinated multi-agent system where 5 specialized AI agents collaborate to solve a real problem -- protecting human identity rights in generative AI:
+
+- **Multi-agent orchestration** -- Compliance, Negotiator, Contract, Search, and Audit agents work in a coordinated pipeline
+- **Agent UX** -- Full dashboard with real-time agent activity feed (Claw Console), expandable logs, and per-request audit trails
+- **Real-world impact** -- Enables creators to control, monetize, and audit how their likeness is used by AI systems
+- **Decision engine** -- Agents autonomously assess risk, negotiate pricing, and generate legal contracts
+
 ---
 
 ## Tech Stack
