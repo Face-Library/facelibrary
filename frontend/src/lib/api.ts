@@ -126,5 +126,21 @@ export const onboardingChat = (data: {
 export const analyzePhoto = (data: { description?: string }) =>
   fetchAPI("/api/talent/analyze-photo", { method: "POST", body: JSON.stringify(data) });
 
+// Payments (Stripe Connect — Anyway bounty commercialization)
+export const createCheckoutSession = (licenseId: number) =>
+  fetchAPI("/api/payments/checkout", {
+    method: "POST",
+    body: JSON.stringify({
+      license_id: licenseId,
+      success_url: `${window.location.origin}/brand/dashboard`,
+      cancel_url: `${window.location.origin}/brand/dashboard`,
+    }),
+  });
+
+export const getRevenue = () => fetchAPI("/api/payments/revenue");
+
+// OpenClaw Config
+export const getOpenClawConfig = () => fetchAPI("/api/openclaw/config");
+
 // Health
 export const getHealth = () => fetchAPI("/api/health");

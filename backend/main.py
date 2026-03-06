@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -1279,6 +1279,318 @@ def analyze_photo(req: PhotoAnalyzeRequest):
     }
 
 
+# -- OpenClaw Config Endpoint --------------------------------------------------
+
+
+@app.get("/api/openclaw/config")
+def openclaw_config():
+    """Serve the OpenClaw gateway configuration for this agent system."""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "agents", "openclaw.json")
+    try:
+        with open(config_path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(404, "OpenClaw config not found")
+
+
+# -- Telegram Bot Webhook (Multi-channel for FLock bounty) --------------------
+
+
+class TelegramUpdate(BaseModel):
+    update_id: int
+    message: dict | None = None
+
+
+@app.post("/api/telegram/webhook")
+def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)):
+    """Handle Telegram bot messages for multi-channel access.
+
+    Supported commands:
+    /start - Welcome message
+    /search <query> - Search for talent
+    /status <license_id> - Check license status
+    /agents - List available AI agents
+    /help - Show available commands
+    """
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    msg = update.message
+    if not msg or "text" not in msg:
+        return {"ok": True}
+
+    chat_id = msg["chat"]["id"]
+    text = msg["text"].strip()
+    reply = ""
+
+    if text.startswith("/start"):
+        reply = (
+            "Welcome to Face Library Bot!\n\n"
+            "I'm your AI-powered likeness licensing assistant. "
+            "I can help you search for talent, check license status, and more.\n\n"
+            "Commands:\n"
+            "/search <query> - Search for talent\n"
+            "/status <license_id> - Check license status\n"
+            "/agents - View AI agent system\n"
+            "/help - Show this message"
+        )
+
+    elif text.startswith("/search"):
+        query = text.replace("/search", "").strip()
+        if not query:
+            reply = "Usage: /search <description>\nExample: /search female model, fashion, UK-based"
+        else:
+            result = orchestrator.search_talent(query)
+            matches = result.get("details", {}).get("matches", [])
+            if matches:
+                reply = f"Found {len(matches)} talent(s):\n\n"
+                for m in matches[:5]:
+                    reply += f"• {m.get('name', 'Unknown')} - Score: {m.get('relevance_score', 'N/A')}\n"
+            else:
+                reply = f"No talent found for: {query}\nTry a different search."
+
+    elif text.startswith("/status"):
+        parts = text.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            reply = "Usage: /status <license_id>\nExample: /status 1"
+        else:
+            lid = int(parts[1])
+            lr = db.query(LicenseRequest).filter(LicenseRequest.id == lid).first()
+            if lr:
+                talent = db.query(TalentProfile).filter(TalentProfile.id == lr.talent_id).first()
+                talent_user = db.query(User).filter(User.id == talent.user_id).first() if talent else None
+                brand = db.query(BrandProfile).filter(BrandProfile.id == lr.brand_id).first()
+                reply = (
+                    f"License #{lr.id}\n"
+                    f"Status: {lr.status}\n"
+                    f"Talent: {talent_user.name if talent_user else 'Unknown'}\n"
+                    f"Brand: {brand.company_name if brand else 'Unknown'}\n"
+                    f"Use Case: {lr.use_case}\n"
+                    f"Price: {'£' + str(lr.proposed_price) if lr.proposed_price else 'Pending'}\n"
+                    f"Risk: {lr.risk_score or 'Pending'}"
+                )
+            else:
+                reply = f"License #{lid} not found."
+
+    elif text.startswith("/agents"):
+        reply = (
+            "Face Library AI Agents (9):\n\n"
+            "1. Compliance & Risk - DeepSeek V3.2 + GLM-4.5\n"
+            "2. Pricing Negotiator - Qwen3 235B\n"
+            "3. IP Contract - GLM-4.5 (Z.AI)\n"
+            "4. Avatar Generation - DeepSeek V3.2\n"
+            "5. Likeness Fingerprint - DeepSeek V3.2\n"
+            "6. Web3 Rights - Polygon/ERC-721\n"
+            "7. Talent Discovery - DeepSeek V3.2\n"
+            "8. Audit & Logging - Local\n"
+            "9. Pipeline Orchestrator - Coordinates all"
+        )
+
+    elif text.startswith("/help"):
+        reply = (
+            "Face Library Bot Commands:\n\n"
+            "/search <query> - Search for talent\n"
+            "/status <license_id> - Check license status\n"
+            "/agents - View AI agent system\n"
+            "/help - Show this message\n\n"
+            "Web: https://face-library.vercel.app\n"
+            "API: https://face-library.onrender.com/docs"
+        )
+
+    else:
+        # Free-text query: treat as talent search
+        result = orchestrator.search_talent(text)
+        matches = result.get("details", {}).get("matches", [])
+        if matches:
+            reply = f"Talent search for '{text}':\n\n"
+            for m in matches[:3]:
+                reply += f"• {m.get('name', 'Unknown')} - {m.get('relevance_score', 'N/A')}\n"
+            reply += "\nUse /help for all commands."
+        else:
+            reply = f"I didn't understand that. Use /help to see available commands."
+
+    # Send reply back to Telegram
+    if TELEGRAM_TOKEN and reply:
+        import httpx
+        try:
+            httpx.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": reply, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+        except Exception:
+            pass  # Non-blocking: don't fail the webhook if Telegram send fails
+
+    return {"ok": True, "reply": reply}
+
+
+@app.post("/api/telegram/setup")
+def telegram_setup_webhook():
+    """Register the Telegram webhook URL with Telegram's API."""
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not TELEGRAM_TOKEN:
+        return {"error": "TELEGRAM_BOT_TOKEN not set"}
+
+    webhook_url = os.getenv("BACKEND_URL", "https://face-library.onrender.com")
+    import httpx
+    resp = httpx.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
+        json={"url": f"{webhook_url}/api/telegram/webhook"},
+        timeout=10,
+    )
+    return resp.json()
+
+
+# -- Stripe Payments (Anyway Bounty: Commercialization) -----------------------
+
+
+class CheckoutRequest(BaseModel):
+    license_id: int
+    success_url: str = "https://face-library.vercel.app/brand/dashboard"
+    cancel_url: str = "https://face-library.vercel.app/brand/dashboard"
+
+
+@app.post("/api/payments/checkout")
+def create_checkout_session(req: CheckoutRequest, db: Session = Depends(get_db)):
+    """Create a Stripe Checkout session for a license payment.
+
+    This is the commercialization endpoint for the Anyway bounty.
+    Brands pay for approved licenses through Stripe Connect.
+    """
+    STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+    if not STRIPE_KEY:
+        raise HTTPException(503, "Stripe not configured")
+
+    lr = db.query(LicenseRequest).filter(LicenseRequest.id == req.license_id).first()
+    if not lr:
+        raise HTTPException(404, "License not found")
+    if not lr.proposed_price:
+        raise HTTPException(400, "License has no proposed price yet. Run the agent pipeline first.")
+
+    talent = db.query(TalentProfile).filter(TalentProfile.id == lr.talent_id).first()
+    talent_user = db.query(User).filter(User.id == talent.user_id).first() if talent else None
+    brand = db.query(BrandProfile).filter(BrandProfile.id == lr.brand_id).first()
+
+    import stripe
+    stripe.api_key = STRIPE_KEY
+
+    # Platform fee: 10% of license price
+    platform_fee = int(lr.proposed_price * 10)  # 10% in pence
+    license_amount = int(lr.proposed_price * 100)  # Full amount in pence
+
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[{
+            "price_data": {
+                "currency": "gbp",
+                "product_data": {
+                    "name": f"Likeness License #{lr.id}",
+                    "description": (
+                        f"License for {talent_user.name if talent_user else 'talent'}'s likeness. "
+                        f"Use case: {lr.use_case}. Duration: {lr.desired_duration_days} days. "
+                        f"Content: {lr.content_type}."
+                    ),
+                },
+                "unit_amount": license_amount,
+            },
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=req.success_url + f"?payment=success&license_id={lr.id}",
+        cancel_url=req.cancel_url + f"?payment=cancelled&license_id={lr.id}",
+        metadata={
+            "license_id": str(lr.id),
+            "talent_id": str(lr.talent_id),
+            "brand_id": str(lr.brand_id),
+            "platform": "face-library",
+            "platform_fee_pence": str(platform_fee),
+        },
+    )
+
+    orchestrator.audit.log(
+        lr.id, "payment", "checkout_created",
+        f"Stripe checkout session created: {session.id} for £{lr.proposed_price}",
+    )
+
+    return {
+        "checkout_url": session.url,
+        "session_id": session.id,
+        "amount_gbp": lr.proposed_price,
+        "platform_fee_gbp": round(lr.proposed_price * 0.1, 2),
+        "talent_payout_gbp": round(lr.proposed_price * 0.9, 2),
+    }
+
+
+@app.post("/api/payments/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events for payment completion."""
+    STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+    WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    if not STRIPE_KEY:
+        raise HTTPException(503, "Stripe not configured")
+
+    import stripe
+    stripe.api_key = STRIPE_KEY
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        if WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
+        else:
+            event = json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid webhook payload")
+
+    if event.get("type") == "checkout.session.completed":
+        session = event["data"]["object"]
+        license_id = session.get("metadata", {}).get("license_id")
+        if license_id:
+            db = next(get_db())
+            lr = db.query(LicenseRequest).filter(LicenseRequest.id == int(license_id)).first()
+            if lr:
+                lr.payment_status = "paid"
+                lr.stripe_session_id = session.get("id", "")
+                lr.updated_at = datetime.utcnow()
+                db.commit()
+
+                orchestrator.audit.log(
+                    int(license_id), "payment", "payment_completed",
+                    f"Payment received: £{session.get('amount_total', 0) / 100:.2f}",
+                )
+
+    return {"received": True}
+
+
+@app.get("/api/payments/revenue")
+def get_revenue(db: Session = Depends(get_db)):
+    """Revenue dashboard for Anyway bounty commercialization tracking."""
+    from sqlalchemy import func
+
+    total_revenue = db.query(func.sum(LicenseRequest.proposed_price)).filter(
+        LicenseRequest.status.in_(["active", "approved"]),
+        LicenseRequest.proposed_price.isnot(None),
+    ).scalar() or 0
+
+    paid_count = db.query(LicenseRequest).filter(
+        LicenseRequest.status.in_(["active", "approved"]),
+        LicenseRequest.proposed_price.isnot(None),
+    ).count()
+
+    platform_fees = round(total_revenue * 0.1, 2)
+    talent_payouts = round(total_revenue * 0.9, 2)
+
+    return {
+        "total_revenue_gbp": round(total_revenue, 2),
+        "platform_fees_gbp": platform_fees,
+        "talent_payouts_gbp": talent_payouts,
+        "total_transactions": paid_count,
+        "fee_rate": "10%",
+        "payment_provider": "Stripe Connect",
+        "currency": "GBP",
+    }
+
+
 # -- Health Check --------------------------------------------------------------
 
 
@@ -1290,7 +1602,10 @@ def health():
         "version": "2.0.0",
         "agents": 9,
         "pipeline": "7-step (Compliance -> Negotiator -> Contract -> Gen -> Fingerprint -> Web3 -> Audit)",
-        "providers": ["FLock (Qwen3, DeepSeek, Kimi)", "Z.AI (GLM-4 Plus)"],
+        "providers": ["FLock (Qwen3, DeepSeek, Kimi)", "Z.AI (GLM-4.5 via OpenRouter)"],
         "bounties": ["FLock.io", "Z.AI", "Claw for Human", "AnyWay", "Animoca"],
         "tracing": "Anyway SDK (OpenTelemetry)",
+        "channels": ["Web (Next.js)", "REST API", "Telegram Bot"],
+        "commercialization": "Stripe Connect",
+        "openclaw": "/api/openclaw/config",
     }

@@ -11,3 +11,5 @@ supabase==2.13.0
 psycopg2-binary==2.9.10
 # AnyWay bounty: Anyway SDK (auto-instruments OpenAI calls + OpenTelemetry tracing)
 anyway-sdk
+# AnyWay bounty: Stripe Connect for commercialization
+stripe>=8.0.0

@@ -178,6 +178,10 @@ class LicenseRequest(Base):
     gen_prompt = Column(Text, nullable=True)
     web3_contract = Column(Text, nullable=True)
 
+    # Payment (Stripe Connect for Anyway bounty commercialization)
+    payment_status = Column(String, default="unpaid")
+    stripe_session_id = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     brand = relationship("BrandProfile")
