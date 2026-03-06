@@ -11,6 +11,3 @@ supabase==2.13.0
 psycopg2-binary==2.9.10
 # AnyWay bounty: Anyway SDK (auto-instruments OpenAI calls + OpenTelemetry tracing)
 anyway-sdk
-opentelemetry-api==1.29.0
-opentelemetry-sdk==1.29.0
-opentelemetry-exporter-otlp-proto-http==1.29.0
