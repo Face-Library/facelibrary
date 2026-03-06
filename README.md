@@ -286,8 +286,9 @@ Open http://localhost:3000
 | `FLOCK_MODEL_PRIMARY` | Primary model (`qwen3-30b-a3b-instruct-2507`) | Yes |
 | `FLOCK_MODEL_REASONING` | Reasoning model (`qwen3-235b-a22b-thinking-2507`) | Yes |
 | `FLOCK_MODEL_FAST` | Fast model (`deepseek-v3.2`) | Yes |
-| `ZAI_API_KEY` | Z.AI API key for GLM-4 Plus | Yes |
-| `ZAI_BASE_URL` | Z.AI endpoint (`https://open.bigmodel.cn/api/paas/v4`) | Yes |
+| `ZAI_API_KEY` | Z.AI API key for GLM-4 Plus (direct) | Optional |
+| `ZAI_BASE_URL` | Z.AI endpoint (`https://open.bigmodel.cn/api/paas/v4`) | Optional |
+| `OPENROUTER_API_KEY` | OpenRouter API key (GLM-4.5 fallback for Z.AI) | Yes |
 | `DATABASE_URL` | Database URL (SQLite or PostgreSQL) | Yes |
 | `SUPABASE_URL` | Supabase project URL | Yes |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
@@ -383,6 +384,14 @@ Open http://localhost:3000
 | GET | `/api/sdg/impact` | SDG impact metrics |
 | POST | `/api/chat/onboarding` | Onboarding chat (talent/brand/agent) |
 | GET | `/api/health` | Health check (version, agent count, pipeline info) |
+
+---
+
+## Documentation
+
+- **[User Guide](USER_GUIDE.md)** -- Complete walkthrough for talent, agents, and brands
+- **[Pitch Deck](PITCHDECK.md)** -- Hackathon presentation deck
+- **[API Docs (Live)](https://face-library.onrender.com/docs)** -- Interactive Swagger UI
 
 ---
 

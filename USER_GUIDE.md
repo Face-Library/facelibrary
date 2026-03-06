@@ -2,6 +2,14 @@
 
 A complete walkthrough of the platform for talent, agents (talent agencies), and brands (advertisers).
 
+### Live Platform
+
+| Service | URL |
+|---------|-----|
+| **Web App** | https://face-library.vercel.app |
+| **API** | https://face-library.onrender.com |
+| **API Docs** | https://face-library.onrender.com/docs |
+
 ---
 
 ## Table of Contents
@@ -296,6 +304,22 @@ Want to test everything end-to-end? Follow these steps:
 8. **Switch to Talent** → Go to `/talent/dashboard`, see the incoming request
 9. **Approve or Reject** → Review the AI-generated contract and agent recommendations
 10. **Check the Claw Console** → `/claw-console` to see the full audit trail
+
+---
+
+---
+
+## LLM Provider Architecture
+
+Face Library uses a multi-provider setup for resilience:
+
+| Provider | Models | Used For |
+|----------|--------|----------|
+| **FLock.io** | DeepSeek V3.2, Qwen3 30B, Qwen3 235B (Instruct + Thinking), Kimi K2.5 | Compliance analysis, pricing negotiation, avatar prompts, fingerprinting, talent search |
+| **Z.AI** (via OpenRouter) | GLM-4.5 (thinking disabled) | IP contract generation, compliance summaries |
+| **Z.AI** (direct) | GLM-4 Plus | Fallback primary (if credits available) |
+
+The system automatically falls back through providers: Z.AI Direct -> OpenRouter GLM -> FLock Reasoning.
 
 ---
 
