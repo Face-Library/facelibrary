@@ -1377,9 +1377,9 @@ def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)):
     elif text.startswith("/agents"):
         reply = (
             "Face Library AI Agents (9):\n\n"
-            "1. Compliance & Risk - DeepSeek V3.2 + GLM-4.5\n"
+            "1. Compliance & Risk - DeepSeek V3.2 + GLM-4 Plus\n"
             "2. Pricing Negotiator - Qwen3 235B\n"
-            "3. IP Contract - GLM-4.5 (Z.AI)\n"
+            "3. IP Contract - GLM-4 Plus (Z.AI)\n"
             "4. Avatar Generation - DeepSeek V3.2\n"
             "5. Likeness Fingerprint - DeepSeek V3.2\n"
             "6. Web3 Rights - Polygon/ERC-721\n"

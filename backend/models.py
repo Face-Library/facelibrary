@@ -382,8 +382,8 @@ Executed as a digital agreement through the Face Library platform.
         )
         db.add(contract)
 
-        # --- Audit Logs ---
-        audit_entries = [
+        # --- Audit Logs (License #1) ---
+        audit_entries_1 = [
             ("orchestrator", "pipeline_started", "License #1 pipeline initiated", "local", 0),
             ("compliance", "risk_assessment", "Risk assessment completed: LOW risk across all 5 dimensions", "deepseek-v3.2", 1847),
             ("compliance", "compliance_summary", "Executive summary generated — all checks passed", "glm-4-plus", 923),
@@ -394,7 +394,7 @@ Executed as a digital agreement through the Face Library platform.
             ("web3_contract", "onchain_rights", "ERC-721 metadata generated for Polygon deployment", "local", 0),
             ("orchestrator", "pipeline_completed", "All 7 pipeline steps completed successfully", "local", 0),
         ]
-        for agent, action, details, model, tokens in audit_entries:
+        for agent, action, details, model, tokens in audit_entries_1:
             db.add(AuditLog(
                 license_id=license1.id,
                 agent_name=agent,
@@ -404,8 +404,110 @@ Executed as a digital agreement through the Face Library platform.
                 tokens_used=tokens,
             ))
 
+        # --- License #2 (Marcus Chen - Sports campaign) ---
+        license2 = LicenseRequest(
+            brand_id=brand.id,
+            talent_id=talent2.id,
+            status="awaiting_approval",
+            use_case="UK fitness and wellness campaign — social media ads and app imagery featuring AI-generated athletic lifestyle content.",
+            content_type="image",
+            desired_duration_days=60,
+            desired_regions="UK",
+            proposed_price=4200.0,
+            risk_score="low",
+            risk_details='{"content_risk":"low","brand_risk":"low","legal_risk":"low","ethical_risk":"low","geographic_risk":"low"}',
+            negotiation_notes="Base price £3,500 adjusted to £4,200 for 60-day UK-only image license. Includes 10% platform fee. Competitive rate for sports/fitness talent.",
+            compliance_notes="All checks passed. Sports and Healthcare categories permitted. No restricted category overlap. GDPR-compliant.",
+            orchestration_status="completed",
+            fingerprint_id="FP-MARCUS-2026-001",
+            gen_prompt="Dynamic sports photography style. Marcus Chen, male athlete, late 20s, strong athletic build. Fitness campaign setting — modern gym environment with natural lighting. Wearing premium athletic wear. Confident, energetic expression. Clean, professional sports brand aesthetic.",
+            payment_status="unpaid",
+        )
+        db.add(license2)
+        db.flush()
+
+        # --- Contract #2 ---
+        contract2 = Contract(
+            license_id=license2.id,
+            contract_text="""INTELLECTUAL PROPERTY LICENSING AGREEMENT
+
+THIS AGREEMENT is made on the date of digital execution between:
+
+LICENSOR: Marcus Chen ("the Talent")
+LICENSEE: LuxFashion UK ("the Brand")
+
+1. DEFINITIONS AND INTERPRETATION
+"Licensed Material" means the AI-generated likeness of the Talent.
+"Permitted Use" means social media advertising and mobile application imagery.
+"Territory" means United Kingdom.
+"License Period" means 60 calendar days from the Effective Date.
+
+2. GRANT OF LICENSE
+The Licensor grants to the Licensee a non-exclusive, non-transferable license to use the Licensed Material for the Permitted Use within the Territory for the License Period.
+
+3. CONSIDERATION
+The Licensee shall pay the Licensor the sum of GBP 4,200 (four thousand two hundred pounds) inclusive of platform fees.
+
+4. INTELLECTUAL PROPERTY RIGHTS
+All intellectual property rights in the Talent's likeness remain vested in the Licensor. The Licensee acquires no ownership rights.
+
+5. AI TRAINING RESTRICTION
+The Licensed Material shall NOT be used for training artificial intelligence models, machine learning systems, or any automated learning processes.
+
+6. DATA PROTECTION (GDPR)
+Both parties shall comply with the UK General Data Protection Regulation and the Data Protection Act 2018.
+
+7. CONTENT RESTRICTIONS
+The Licensed Material shall not be used in connection with: alcohol, gambling, tobacco, political campaigns, or any content that may bring the Talent into disrepute.
+
+8. MORAL RIGHTS
+The Licensor asserts their moral rights under Chapter IV of the Copyright, Designs and Patents Act 1988.
+
+9. TERMINATION
+Either party may terminate this Agreement with 30 days written notice. Upon termination, the Licensee shall cease all use of the Licensed Material within 14 days.
+
+10. DISPUTE RESOLUTION
+Any dispute shall be resolved through mediation under the CEDR Model Mediation Procedure, followed by arbitration under the Arbitration Act 1996 if necessary.
+
+11. GOVERNING LAW
+This Agreement shall be governed by and construed in accordance with the laws of England and Wales.
+
+12. CONSUMER RIGHTS
+Nothing in this Agreement affects the statutory rights of either party under the Consumer Rights Act 2015.
+
+Executed as a digital agreement through the Face Library platform.
+""",
+            generated_by="contract_agent",
+            model_used="glm-4-plus",
+            uk_law_compliant=True,
+            ip_clauses="Sections 4, 5, 8: IP retention, AI training restriction, moral rights assertion",
+        )
+        db.add(contract2)
+
+        # --- Audit Logs (License #2) ---
+        audit_entries_2 = [
+            ("orchestrator", "pipeline_started", "License #2 pipeline initiated", "local", 0),
+            ("compliance", "risk_assessment", "Risk assessment completed: LOW risk across all 5 dimensions", "deepseek-v3.2", 1652),
+            ("compliance", "compliance_summary", "Executive summary generated — all checks passed", "glm-4-plus", 891),
+            ("negotiator", "price_negotiation", "Price set at £4,200 for 60-day UK image license", "qwen3-235b-a22b-instruct-2507", 1943),
+            ("contract", "contract_generation", "12-section UK-law-compliant IP licensing agreement generated", "glm-4-plus", 3521),
+            ("gen_orchestrator", "avatar_prompt", "Generation prompt created for sports/fitness style", "deepseek-v3.2", 1087),
+            ("fingerprint", "likeness_scan", "Fingerprint ID FP-MARCUS-2026-001 registered", "deepseek-v3.2", 792),
+            ("web3_contract", "onchain_rights", "ERC-721 metadata generated for Polygon deployment", "local", 0),
+            ("orchestrator", "pipeline_completed", "All 7 pipeline steps completed successfully", "local", 0),
+        ]
+        for agent, action, details, model, tokens in audit_entries_2:
+            db.add(AuditLog(
+                license_id=license2.id,
+                agent_name=agent,
+                action=action,
+                details=details,
+                model_used=model,
+                tokens_used=tokens,
+            ))
+
         db.commit()
-        print("[Seed] Demo data inserted: 3 users, 2 talents, 1 brand, 1 license, 1 contract, 9 audit logs")
+        print("[Seed] Demo data inserted: 3 users, 2 talents, 1 brand, 2 licenses, 2 contracts, 18 audit logs")
     except Exception as e:
         db.rollback()
         print(f"[Seed] Error seeding demo data: {e}")
