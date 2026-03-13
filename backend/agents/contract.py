@@ -1,119 +1,166 @@
-"""IP Contract Generation Agent -- Generates legally-compliant licensing contracts.
+"""IP & Contract Agent -- The single AI agent for the MVP.
 
-Bounty coverage:
-- Z.AI: Primary use of GLM-4 Plus for legal document generation (128K context)
-- FLock.io: Qwen3 235B Thinking as fallback for contract generation
-- Claw for Human: Autonomous contract generation protecting human identity rights
+Handles:
+- Contract generation from templates (Standard, Exclusive, Time-Limited)
+- IP validation and analysis
+- Contract improvement based on talent/client needs
 """
 from llm_client import chat
-from tracing import trace_agent
+
+
+# -- Contract Templates ------------------------------------------------------
+
+TEMPLATES = {
+    "standard": {
+        "name": "Standard License",
+        "description": "Non-exclusive license for digital content usage.",
+        "exclusivity": False,
+        "default_duration_days": 90,
+    },
+    "exclusive": {
+        "name": "Exclusive License",
+        "description": "Exclusive rights to use likeness within specified category.",
+        "exclusivity": True,
+        "default_duration_days": 180,
+    },
+    "time_limited": {
+        "name": "Time-Limited License",
+        "description": "Short-term campaign license with strict time bounds.",
+        "exclusivity": False,
+        "default_duration_days": 30,
+    },
+}
 
 
 class ContractAgent:
-    name = "contract"
-    provider = "Z.AI (GLM-4 Plus) / FLock (Qwen3 235B)"
-    sdg_alignment = ["SDG 16 (Peace, Justice, Strong Institutions)"]
+    name = "contract_agent"
 
-    SYSTEM_PROMPT = """You are the IP Contract Generation Agent for Face Library, a secure likeness licensing platform.
+    SYSTEM_PROMPT = """You are the IP & Contract Agent for Face Library, a secure likeness licensing platform.
 
-Your role is to generate legally-compliant licensing contracts for the use of a person's likeness in AI-generated content. All contracts must be aligned with UK legal frameworks including:
+Your role is to generate, validate, and improve legally-compliant licensing contracts for the use of a person's likeness in AI-generated content.
 
+All contracts must align with UK legal frameworks:
 - UK Copyright, Designs and Patents Act 1988
 - UK GDPR (Data Protection Act 2018)
-- The right to one's own image under UK common law
 - Consumer Rights Act 2015
-- Electronic Commerce Regulations 2002
-- Equality Act 2010 (non-discrimination provisions)
+- The right to one's own image under UK common law
 
-Generate a complete, professional licensing contract that includes ALL 12 sections:
+Generate a complete, professional licensing contract with these sections:
 
-1. PARTIES -- Licensor (talent) and Licensee (brand) details with full legal names
-2. DEFINITIONS -- Key terms (Likeness, Licensed Content, Territory, AI-Generated Content, etc.)
-3. GRANT OF LICENSE -- Scope, duration, exclusivity, permitted uses, sub-licensing restrictions
-4. RESTRICTIONS -- What the licensee cannot do (deepfakes, defamatory use, political use, etc.)
-5. COMPENSATION -- Fee structure, payment terms, late payment interest (8% per annum per Late Payment of Commercial Debts Act 1998)
-6. INTELLECTUAL PROPERTY -- IP ownership, moral rights (Copyright Act 1988 s77-89), no AI training clause
-7. DATA PROTECTION -- GDPR compliance, data processing agreements, lawful basis, DPIA requirements
-8. WARRANTIES & REPRESENTATIONS -- Both parties' guarantees, authority to contract
-9. TERMINATION -- Conditions for early termination, revocation rights (30-day notice), post-termination obligations
-10. LIABILITY -- Limitation of liability, indemnification, insurance requirements
-11. DISPUTE RESOLUTION -- Governing law (England & Wales), jurisdiction (Courts of England and Wales), mediation first
-12. GENERAL PROVISIONS -- Entire agreement, amendments, severability, notices, force majeure, assignment
+1. PARTIES -- Licensor (talent) and Licensee (client) details
+2. DEFINITIONS -- Key terms (Likeness, Licensed Content, Territory, etc.)
+3. GRANT OF LICENSE -- Scope, duration, exclusivity, permitted uses
+4. RESTRICTIONS -- What the licensee cannot do (deepfakes, defamatory use, etc.)
+5. COMPENSATION -- Fee structure, payment terms
+6. INTELLECTUAL PROPERTY -- IP ownership, moral rights, no AI training clause
+7. DATA PROTECTION -- GDPR compliance
+8. TERMINATION -- Conditions, notice period, post-termination obligations
+9. DISPUTE RESOLUTION -- Governing law (England & Wales)
+10. GENERAL PROVISIONS -- Entire agreement, severability
 
-The contract should be professional, clear, and enforceable, protecting both parties' interests with special emphasis on the talent's likeness rights and data protection.
+Output the full contract text with proper legal clause numbering."""
 
-Output the full contract text, formatted with proper legal document structure using numbered clauses and sub-clauses."""
+    VALIDATION_PROMPT = """You are an IP law specialist reviewing a licensing contract for Face Library.
 
-    def run(self, talent_profile: dict, brand_profile: dict, negotiation_result: dict, compliance_result: dict) -> dict:
-        with trace_agent(self.name, "contract_generation", {
-            "talent": talent_profile.get("name", "unknown"),
-            "brand": brand_profile.get("company_name", "unknown"),
-        }) as span:
-            conditions = ""
-            if compliance_result and compliance_result.get("result"):
-                cr = compliance_result["result"]
-                conditions = f"""
-COMPLIANCE CONDITIONS:
-- Risk level: {cr.get('risk_level', 'unknown')}
-- Recommendation: {cr.get('recommendation', 'N/A')}
-- Conditions: {', '.join(cr.get('conditions', []))}
-- GDPR compliant: {cr.get('compliance_checks', {}).get('uk_gdpr_compliant', 'N/A')}
-- IP law compliant: {cr.get('compliance_checks', {}).get('ip_law_compliant', 'N/A')}"""
+Analyze the contract for:
+1. Legal compliance with UK law (Copyright Act 1988, GDPR, Consumer Rights Act 2015)
+2. IP protection adequacy -- are the talent's likeness rights properly protected?
+3. Fairness -- are terms balanced between talent and client?
+4. Completeness -- are any critical clauses missing?
+5. Risk areas -- any terms that could be exploited?
 
-            negotiation_terms = ""
-            if negotiation_result and negotiation_result.get("result"):
-                nr = negotiation_result["result"]
-                terms = nr.get("recommended_terms", {})
-                negotiation_terms = f"""
-AGREED TERMS:
-- Price: GBP {nr.get('proposed_price', 'TBD')}
-- Currency: {nr.get('currency', 'GBP')}
-- Duration: {terms.get('duration_days', 30)} days
-- Exclusivity: {terms.get('exclusivity', False)}
-- Regions: {', '.join(terms.get('regions', ['United Kingdom']))}
-- Content types: {', '.join(terms.get('content_types', ['image']))}
-- Usage limit: {terms.get('usage_limit', 'Unlimited within license period')}
-- Revocation: {terms.get('revocation_terms', 'Standard 30-day notice')}
-- Renewal: {terms.get('renewal_terms', 'Subject to mutual agreement')}"""
+Provide your analysis as JSON:
+{
+    "is_valid": true/false,
+    "overall_score": 1-10,
+    "issues": [{"severity": "high/medium/low", "clause": "...", "issue": "...", "suggestion": "..."}],
+    "missing_clauses": ["..."],
+    "recommendations": ["..."],
+    "summary": "Brief overall assessment"
+}"""
 
-            messages = [
-                {"role": "system", "content": self.SYSTEM_PROMPT},
-                {"role": "user", "content": f"""Generate a licensing contract for the following arrangement:
+    def generate_contract(self, talent_profile: dict, client_profile: dict, license_request: dict) -> dict:
+        """Generate a new contract based on license type and request details."""
+        license_type = license_request.get("license_type", "standard")
+        template = TEMPLATES.get(license_type, TEMPLATES["standard"])
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": f"""Generate a {template['name']} contract:
 
 LICENSOR (TALENT):
 - Name: {talent_profile.get('name', '[TALENT NAME]')}
 - Bio: {talent_profile.get('bio', 'N/A')}
+- Restricted categories: {talent_profile.get('restricted_categories', 'None')}
+- Min price: GBP {talent_profile.get('min_price_per_use', 100)}
+- AI training allowed: {talent_profile.get('allow_ai_training', False)}
 
-LICENSEE (BRAND):
-- Company: {brand_profile.get('company_name', '[BRAND NAME]')}
-- Industry: {brand_profile.get('industry', 'N/A')}
-- Website: {brand_profile.get('website', 'N/A')}
+LICENSEE (CLIENT):
+- Company: {client_profile.get('company_name', '[CLIENT NAME]')}
+- Industry: {client_profile.get('industry', 'N/A')}
 
-USE CASE:
-- Description: {brand_profile.get('use_case', 'AI-generated marketing content')}
-- Content type: {brand_profile.get('content_type', 'image')}
-{negotiation_terms}
-{conditions}
+LICENSE DETAILS:
+- Type: {template['name']} ({template['description']})
+- Use case: {license_request.get('use_case', 'AI-generated content')}
+- Content type: {license_request.get('content_type', 'image')}
+- Duration: {license_request.get('desired_duration_days', template['default_duration_days'])} days
+- Regions: {license_request.get('desired_regions', 'United Kingdom')}
+- Exclusivity: {template['exclusivity'] or license_request.get('exclusivity', False)}
+- Proposed price: GBP {license_request.get('proposed_price', talent_profile.get('min_price_per_use', 100))}
 
-Generate a complete, enforceable licensing contract under the laws of England and Wales. Include all 12 sections with proper legal clause numbering."""},
-            ]
+Generate a complete, enforceable contract under the laws of England and Wales."""},
+        ]
 
-            # Primary: Z.AI GLM-4 Plus (128K context -- ideal for long legal documents)
-            result = chat(messages, model_tier="zai_primary", temperature=0.3, max_tokens=4096, agent_name=self.name)
-            used_provider = "zai"
+        result = chat(messages, temperature=0.3, max_tokens=4096)
 
-            # Fallback: FLock Qwen3 235B Thinking if Z.AI fails
-            if result.get("error"):
-                result = chat(messages, model_tier="reasoning", temperature=0.3, max_tokens=4096, agent_name=self.name)
-                used_provider = "flock_fallback"
+        return {
+            "agent": self.name,
+            "contract_text": result["content"],
+            "license_type": license_type,
+            "model": result["model"],
+            "tokens_used": result["tokens_used"],
+        }
 
-            span.set_attribute("contract.provider", used_provider)
-            span.set_attribute("contract.length", str(len(result.get("content", ""))))
+    def validate_contract(self, contract_text: str) -> dict:
+        """Validate an existing contract for IP compliance and completeness."""
+        from llm_client import chat_json
 
-            return {
-                "agent": self.name,
-                "contract_text": result["content"],
-                "model": result["model"],
-                "tokens_used": result["tokens_used"],
-                "provider": used_provider,
-            }
+        messages = [
+            {"role": "system", "content": self.VALIDATION_PROMPT},
+            {"role": "user", "content": f"Review this licensing contract:\n\n{contract_text}"},
+        ]
+
+        result = chat_json(messages, temperature=0.2, max_tokens=2048)
+
+        return {
+            "agent": self.name,
+            "action": "validation",
+            "result": result.get("parsed"),
+            "model": result["model"],
+            "tokens_used": result["tokens_used"],
+        }
+
+    def improve_contract(self, contract_text: str, feedback: str) -> dict:
+        """Improve a contract based on talent/client feedback."""
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": f"""Improve this existing contract based on the feedback provided.
+
+EXISTING CONTRACT:
+{contract_text}
+
+FEEDBACK / REQUESTED CHANGES:
+{feedback}
+
+Generate the improved contract with all changes incorporated. Maintain legal compliance."""},
+        ]
+
+        result = chat(messages, temperature=0.3, max_tokens=4096)
+
+        return {
+            "agent": self.name,
+            "action": "improvement",
+            "contract_text": result["content"],
+            "model": result["model"],
+            "tokens_used": result["tokens_used"],
+        }

@@ -1,14 +1,15 @@
-"""Face Library Database Models -- SQLAlchemy ORM for all platform entities.
+"""Face Library MVP -- Database Models.
 
 Tables:
-- User: Authentication accounts (talent, brand, agent roles)
-- TalentProfile: Likeness licensing preferences (pricing, restrictions, social links)
-- BrandProfile: Advertiser company profiles
-- AgentProfile: Talent agency profiles (manages talent rosters)
+- User: Authentication accounts (talent, client, agent roles)
+- TalentProfile: Likeness profile with photo upload, preferences, social links
+- ClientProfile: Client/advertiser company profiles (renamed from Brand)
+- AgentProfile: Talent agency profiles
 - TalentAgentLink: Many-to-many link between talents and their agents
-- LicenseRequest: Brand-to-talent licensing requests (tracks full pipeline state)
+- LicenseRequest: Client-to-talent licensing requests with manual review workflow
 - Contract: AI-generated UK-law-compliant licensing contracts
-- AuditLog: Immutable audit trail for all agent actions (Claw Console)
+- AuditLog: Audit trail for platform actions
+- WatermarkTracking: Tracks watermarked content usage across platforms
 """
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
@@ -19,7 +20,6 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./face_library.db")
 
-# Support both SQLite and PostgreSQL (Supabase)
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
@@ -29,20 +29,17 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# ── Enums ────────────────────────────────────────────────────────────────────
+# -- Enums -------------------------------------------------------------------
 
 class UserRole(str, enum.Enum):
-    """Three platform roles: talent (licensor), brand (licensee), agent (manager)."""
     TALENT = "talent"
-    BRAND = "brand"
+    CLIENT = "client"
     AGENT = "agent"
 
 
 class LicenseStatus(str, enum.Enum):
-    """Tracks the license through the 7-agent pipeline stages."""
     PENDING = "pending"
-    NEGOTIATING = "negotiating"
-    COMPLIANCE_CHECK = "compliance_check"
+    UNDER_REVIEW = "under_review"
     AWAITING_APPROVAL = "awaiting_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -51,29 +48,27 @@ class LicenseStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
-class RiskLevel(str, enum.Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+class LicenseType(str, enum.Enum):
+    """Three basic licensing categories for MVP."""
+    STANDARD = "standard"
+    EXCLUSIVE = "exclusive"
+    TIME_LIMITED = "time_limited"
 
 
 class ApprovalType(str, enum.Enum):
-    """Who must approve a license when talent has an agent."""
     TALENT_ONLY = "talent_only"
     AGENT_ONLY = "agent_only"
     BOTH_REQUIRED = "both_required"
 
 
-# ── Core Tables ──────────────────────────────────────────────────────────────
+# -- Core Tables -------------------------------------------------------------
 
 class User(Base):
-    """Authentication account. Each user has exactly one role and one profile."""
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
-    role = Column(String, nullable=False)
+    role = Column(String, nullable=False)  # talent, client, agent
     company = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
     supabase_uid = Column(String, unique=True, nullable=True, index=True)
@@ -81,12 +76,24 @@ class User(Base):
 
 
 class TalentProfile(Base):
-    """Talent's likeness licensing preferences, pricing, and social media links."""
     __tablename__ = "talent_profiles"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Basic info
     bio = Column(Text, nullable=True)
-    categories = Column(String, nullable=True)
+    stage_name = Column(String, nullable=True)
+    categories = Column(String, nullable=True)  # e.g. "Influencer,Model,Actor"
+    nationality = Column(String, nullable=True)
+    ethnicity = Column(String, nullable=True)
+    gender = Column(String, nullable=True)
+    age = Column(Integer, nullable=True)
+
+    # Photo / likeness
+    image_url = Column(String, nullable=True)  # Uploaded face photo (Supabase Storage)
+    avatar_url = Column(String, nullable=True)
+
+    # Licensing preferences
     restricted_categories = Column(String, nullable=True)
     min_price_per_use = Column(Float, default=100.0)
     max_license_duration_days = Column(Integer, default=365)
@@ -96,42 +103,50 @@ class TalentProfile(Base):
     geo_restrictions = Column(String, nullable=True)
     geo_scope = Column(String, default="global")
     approval_mode = Column(String, default="manual")
-    portfolio_description = Column(Text, nullable=True)
-    avatar_url = Column(String, nullable=True)
-    watermark_id = Column(String, nullable=True)
+
     # Social media links
     instagram = Column(String, nullable=True)
     tiktok = Column(String, nullable=True)
     youtube = Column(String, nullable=True)
+
     # Agency representation
     has_agent = Column(Boolean, default=False)
     agent_email = Column(String, nullable=True)
+
+    # Watermark
+    watermark_id = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User")
 
 
-class BrandProfile(Base):
-    """Brand/advertiser company profile for licensing requests."""
-    __tablename__ = "brand_profiles"
+class ClientProfile(Base):
+    """Client/advertiser company profile (renamed from BrandProfile)."""
+    __tablename__ = "client_profiles"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     company_name = Column(String, nullable=False)
     industry = Column(String, nullable=True)
     website = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    role_title = Column(String, nullable=True)  # CEO/Founder, Creative Director, etc.
+    referral_source = Column(String, nullable=True)  # Google, Social media, etc.
+    ai_tools_used = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User")
 
 
 class AgentProfile(Base):
-    """Talent agent/agency profile — manages rosters of talent."""
     __tablename__ = "agent_profiles"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     agency_name = Column(String, nullable=False)
     website = Column(String, nullable=True)
+    portfolio_url = Column(String, nullable=True)
+    instagram = Column(String, nullable=True)
+    industry = Column(String, nullable=True)
     country = Column(String, nullable=True)
-    team_size = Column(String, nullable=True)
     default_restricted_categories = Column(String, nullable=True)
     approval_workflow = Column(String, default="both_required")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -139,7 +154,6 @@ class AgentProfile(Base):
 
 
 class TalentAgentLink(Base):
-    """Links a talent to their agent with configurable approval workflow."""
     __tablename__ = "talent_agent_links"
     id = Column(Integer, primary_key=True, index=True)
     talent_id = Column(Integer, ForeignKey("talent_profiles.id"), nullable=False)
@@ -150,15 +164,18 @@ class TalentAgentLink(Base):
     agent = relationship("AgentProfile")
 
 
-# ── Licensing Pipeline Tables ─────────────────────────────────────────────────
+# -- Licensing ---------------------------------------------------------------
 
 class LicenseRequest(Base):
-    """A brand's request to license a talent's likeness. Tracks the full 7-agent pipeline state."""
+    """A client's request to license a talent's likeness. Supports manual review workflow."""
     __tablename__ = "license_requests"
     id = Column(Integer, primary_key=True, index=True)
-    brand_id = Column(Integer, ForeignKey("brand_profiles.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("client_profiles.id"), nullable=False)
     talent_id = Column(Integer, ForeignKey("talent_profiles.id"), nullable=False)
+
+    # Request details
     status = Column(String, default=LicenseStatus.PENDING.value)
+    license_type = Column(String, default=LicenseType.STANDARD.value)
     use_case = Column(Text, nullable=False)
     campaign_description = Column(Text, nullable=True)
     desired_duration_days = Column(Integer, default=30)
@@ -166,33 +183,37 @@ class LicenseRequest(Base):
     content_type = Column(String, default="image")
     exclusivity = Column(Boolean, default=False)
 
-    # Agent-populated fields
+    # Pricing
     proposed_price = Column(Float, nullable=True)
-    risk_score = Column(String, nullable=True)
-    risk_details = Column(Text, nullable=True)
-    negotiation_notes = Column(Text, nullable=True)
-    compliance_notes = Column(Text, nullable=True)
-    license_token = Column(String, nullable=True)
-    orchestration_status = Column(String, default="not_started")
-    fingerprint_id = Column(String, nullable=True)
-    gen_prompt = Column(Text, nullable=True)
-    web3_contract = Column(Text, nullable=True)
 
-    # Payment (Stripe Connect for Anyway bounty commercialization)
+    # Contract agent output
+    contract_generated = Column(Boolean, default=False)
+    contract_notes = Column(Text, nullable=True)
+
+    # Manual review fields
+    admin_notes = Column(Text, nullable=True)
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    # Payment (Stripe)
     payment_status = Column(String, default="unpaid")
     stripe_session_id = Column(String, nullable=True)
 
+    # License token
+    license_token = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    brand = relationship("BrandProfile")
+    client = relationship("ClientProfile")
     talent = relationship("TalentProfile")
 
 
 class Contract(Base):
-    """AI-generated UK-law-compliant licensing contract (produced by Contract Agent)."""
+    """AI-generated UK-law-compliant licensing contract."""
     __tablename__ = "contracts"
     id = Column(Integer, primary_key=True, index=True)
     license_id = Column(Integer, ForeignKey("license_requests.id"), nullable=False)
+    license_type = Column(String, default=LicenseType.STANDARD.value)
     contract_text = Column(Text, nullable=False)
     generated_by = Column(String, default="contract_agent")
     model_used = Column(String, nullable=True)
@@ -202,10 +223,10 @@ class Contract(Base):
     license = relationship("LicenseRequest")
 
 
-# ── Audit & Observability ─────────────────────────────────────────────────────
+# -- Audit & Watermark Tracking ----------------------------------------------
 
 class AuditLog(Base):
-    """Immutable audit trail entry — every agent action is logged here (powers Claw Console)."""
+    """Audit trail for platform actions."""
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
     license_id = Column(Integer, ForeignKey("license_requests.id"), nullable=True)
@@ -217,12 +238,40 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class WatermarkTracking(Base):
+    """Tracks watermarked content usage across platforms.
+
+    Placeholder for integration with watermark tracing technology partner.
+    Records where licensed content has been detected and whether usage is authorized.
+    """
+    __tablename__ = "watermark_tracking"
+    id = Column(Integer, primary_key=True, index=True)
+    license_id = Column(Integer, ForeignKey("license_requests.id"), nullable=False)
+    talent_id = Column(Integer, ForeignKey("talent_profiles.id"), nullable=False)
+    watermark_id = Column(String, nullable=False)
+
+    # Detection details
+    platform_detected = Column(String, nullable=True)  # e.g. "Instagram", "TikTok", "Website"
+    detection_url = Column(String, nullable=True)
+    detected_at = Column(DateTime, nullable=True)
+    is_authorized = Column(Boolean, default=True)
+
+    # Status
+    status = Column(String, default="active")  # active, violation_detected, resolved
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    license = relationship("LicenseRequest")
+    talent = relationship("TalentProfile")
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
 
 def seed_demo_data():
-    """Populate DB with demo data if empty (so deploys aren't blank)."""
+    """Populate DB with demo data if empty."""
     import hashlib
     import secrets
 
@@ -234,7 +283,7 @@ def seed_demo_data():
     db = SessionLocal()
     try:
         if db.query(User).count() > 0:
-            return  # already seeded
+            return
 
         demo_pw = _hash("demo123")
 
@@ -243,8 +292,8 @@ def seed_demo_data():
             email="emma@demo.test", name="Emma Clarke", role="talent",
             password_hash=demo_pw,
         )
-        brand_user = User(
-            email="james@luxbrand.test", name="James Wilson", role="brand",
+        client_user = User(
+            email="james@luxbrand.test", name="James Wilson", role="client",
             company="LuxFashion UK",
             password_hash=_hash("demo123"),
         )
@@ -252,40 +301,42 @@ def seed_demo_data():
             email="marcus@demo.test", name="Marcus Chen", role="talent",
             password_hash=_hash("demo123"),
         )
-        db.add_all([talent_user, brand_user, talent_user2])
+        db.add_all([talent_user, client_user, talent_user2])
         db.flush()
 
         # --- Talent Profiles ---
         talent1 = TalentProfile(
             user_id=talent_user.id,
-            bio="Award-winning fashion model and digital creator with 10+ years of experience in luxury and editorial campaigns across Europe and Asia.",
-            categories="Fashion,Beauty,Technology,Entertainment",
+            bio="Award-winning fashion model and digital creator with 10+ years of experience.",
+            stage_name="Emma Clarke",
+            categories="Model,Fashion,Beauty",
+            nationality="British",
+            gender="Female",
+            age=30,
             restricted_categories="Alcohol,Gambling,Political",
             min_price_per_use=5000.0,
             max_license_duration_days=365,
             allow_ai_training=False,
-            allow_video_generation=True,
-            allow_image_generation=True,
             geo_scope="global",
             approval_mode="manual",
-            portfolio_description="High-fashion editorial, luxury brand campaigns, tech product launches",
             avatar_url="/emma-clarke.webp",
             instagram="@emmaclarke",
             tiktok="@emmaclarke_official",
         )
         talent2 = TalentProfile(
             user_id=talent_user2.id,
-            bio="Professional athlete and fitness influencer. Former Olympic sprinter turned brand ambassador for sports and wellness brands.",
-            categories="Sports,Healthcare,Technology,Food & Beverage",
+            bio="Professional athlete and fitness influencer. Former Olympic sprinter.",
+            stage_name="Marcus Chen",
+            categories="Sports,Influencer",
+            nationality="British",
+            gender="Male",
+            age=28,
             restricted_categories="Alcohol,Gambling,Tobacco",
             min_price_per_use=3500.0,
             max_license_duration_days=180,
             allow_ai_training=False,
-            allow_video_generation=True,
-            allow_image_generation=True,
             geo_scope="UK,EU",
             approval_mode="manual",
-            portfolio_description="Sports campaigns, fitness brand endorsements, wellness product launches",
             avatar_url="/marcus-chen.webp",
             instagram="@marcuschen",
             youtube="@MarcusChenFitness",
@@ -293,35 +344,33 @@ def seed_demo_data():
         db.add_all([talent1, talent2])
         db.flush()
 
-        # --- Brand Profile ---
-        brand = BrandProfile(
-            user_id=brand_user.id,
+        # --- Client Profile ---
+        client = ClientProfile(
+            user_id=client_user.id,
             company_name="LuxFashion UK",
             industry="Fashion",
             website="https://luxfashion.example.com",
+            role_title="Creative Director",
+            referral_source="Google",
             description="Premium British fashion house specialising in sustainable luxury wear.",
         )
-        db.add(brand)
+        db.add(client)
         db.flush()
 
-        # --- License Request (fully processed) ---
+        # --- License Request (demo) ---
         license1 = LicenseRequest(
-            brand_id=brand.id,
+            client_id=client.id,
             talent_id=talent1.id,
             status="awaiting_approval",
-            use_case="Summer 2026 luxury fashion campaign — digital ads, social media, and e-commerce product pages featuring AI-generated lifestyle imagery.",
+            license_type="standard",
+            use_case="Summer 2026 luxury fashion campaign — digital ads and social media.",
             content_type="image",
             desired_duration_days=90,
             desired_regions="UK, EU",
             proposed_price=6750.0,
-            risk_score="low",
-            risk_details='{"content_risk":"low","brand_risk":"low","legal_risk":"low","ethical_risk":"low","geographic_risk":"low"}',
-            negotiation_notes="Base price £5,000 adjusted to £6,750 for 90-day multi-region (UK+EU) image license. Includes 10% platform fee. Fair market rate for fashion editorial talent.",
-            compliance_notes="All checks passed. No restricted category overlap. GDPR-compliant processing. UK Copyright Act 1988 alignment confirmed.",
-            orchestration_status="completed",
-            fingerprint_id="FP-EMMA-2026-001",
-            gen_prompt="Professional fashion photography style. Emma Clarke, female model, early 30s, elegant features. Luxury summer collection setting — natural light, Mediterranean terrace backdrop. Wearing flowing silk dress in champagne gold. Confident, approachable expression. High-end editorial quality, soft bokeh background.",
+            contract_generated=True,
             payment_status="unpaid",
+            license_token="FL-LIC-001",
         )
         db.add(license1)
         db.flush()
@@ -329,16 +378,17 @@ def seed_demo_data():
         # --- Contract ---
         contract = Contract(
             license_id=license1.id,
+            license_type="standard",
             contract_text="""INTELLECTUAL PROPERTY LICENSING AGREEMENT
 
 THIS AGREEMENT is made on the date of digital execution between:
 
 LICENSOR: Emma Clarke ("the Talent")
-LICENSEE: LuxFashion UK ("the Brand")
+LICENSEE: LuxFashion UK ("the Client")
 
 1. DEFINITIONS AND INTERPRETATION
 "Licensed Material" means the AI-generated likeness of the Talent.
-"Permitted Use" means digital advertising, social media content, and e-commerce imagery.
+"Permitted Use" means digital advertising and social media content.
 "Territory" means United Kingdom and European Union member states.
 "License Period" means 90 calendar days from the Effective Date.
 
@@ -346,16 +396,16 @@ LICENSEE: LuxFashion UK ("the Brand")
 The Licensor grants to the Licensee a non-exclusive, non-transferable license to use the Licensed Material for the Permitted Use within the Territory for the License Period.
 
 3. CONSIDERATION
-The Licensee shall pay the Licensor the sum of GBP 6,750 (six thousand seven hundred and fifty pounds) inclusive of platform fees.
+The Licensee shall pay the Licensor the sum of GBP 6,750 inclusive of platform fees.
 
 4. INTELLECTUAL PROPERTY RIGHTS
-All intellectual property rights in the Talent's likeness remain vested in the Licensor. The Licensee acquires no ownership rights.
+All intellectual property rights in the Talent's likeness remain vested in the Licensor.
 
 5. AI TRAINING RESTRICTION
-The Licensed Material shall NOT be used for training artificial intelligence models, machine learning systems, or any automated learning processes.
+The Licensed Material shall NOT be used for training AI models or machine learning systems.
 
 6. DATA PROTECTION (GDPR)
-Both parties shall comply with the UK General Data Protection Regulation and the Data Protection Act 2018.
+Both parties shall comply with the UK GDPR and the Data Protection Act 2018.
 
 7. CONTENT RESTRICTIONS
 The Licensed Material shall not be used in connection with: alcohol, gambling, political campaigns, tobacco, or any content that may bring the Talent into disrepute.
@@ -364,155 +414,39 @@ The Licensed Material shall not be used in connection with: alcohol, gambling, p
 The Licensor asserts their moral rights under Chapter IV of the Copyright, Designs and Patents Act 1988.
 
 9. TERMINATION
-Either party may terminate this Agreement with 30 days written notice. Upon termination, the Licensee shall cease all use of the Licensed Material within 14 days.
+Either party may terminate with 30 days written notice. Upon termination, the Licensee shall cease all use within 14 days.
 
 10. DISPUTE RESOLUTION
-Any dispute shall be resolved through mediation under the CEDR Model Mediation Procedure, followed by arbitration under the Arbitration Act 1996 if necessary.
-
-11. GOVERNING LAW
-This Agreement shall be governed by and construed in accordance with the laws of England and Wales.
-
-12. CONSUMER RIGHTS
-Nothing in this Agreement affects the statutory rights of either party under the Consumer Rights Act 2015.
+Any dispute shall be governed by the laws of England and Wales.
 
 Executed as a digital agreement through the Face Library platform.
 """,
             generated_by="contract_agent",
-            model_used="glm-4-plus",
+            model_used="gpt-4",
             uk_law_compliant=True,
-            ip_clauses="Sections 4, 5, 8: IP retention, AI training restriction, moral rights assertion",
+            ip_clauses="Sections 4, 5, 8: IP retention, AI training restriction, moral rights",
         )
         db.add(contract)
 
-        # --- Audit Logs (License #1) ---
-        audit_entries_1 = [
-            ("orchestrator", "pipeline_started", "License #1 pipeline initiated", "local", 0),
-            ("compliance", "risk_assessment", "Risk assessment completed: LOW risk across all 5 dimensions", "deepseek-v3.2", 1847),
-            ("compliance", "compliance_summary", "Executive summary generated — all checks passed", "glm-4-plus", 923),
-            ("negotiator", "price_negotiation", "Price set at £6,750 for 90-day UK+EU image license", "qwen3-235b-a22b-instruct-2507", 2105),
-            ("contract", "contract_generation", "12-section UK-law-compliant IP licensing agreement generated", "glm-4-plus", 3842),
-            ("gen_orchestrator", "avatar_prompt", "Generation prompt created for fashion editorial style", "deepseek-v3.2", 1203),
-            ("fingerprint", "likeness_scan", "Fingerprint ID FP-EMMA-2026-001 registered", "deepseek-v3.2", 856),
-            ("web3_contract", "onchain_rights", "ERC-721 metadata generated for Polygon deployment", "local", 0),
-            ("orchestrator", "pipeline_completed", "All 7 pipeline steps completed successfully", "local", 0),
+        # --- Audit Logs ---
+        audit_entries = [
+            ("system", "license_created", "License #1 created by LuxFashion UK for Emma Clarke"),
+            ("contract_agent", "contract_generated", "IP licensing agreement generated"),
+            ("system", "awaiting_approval", "License sent to talent for approval"),
         ]
-        for agent, action, details, model, tokens in audit_entries_1:
+        for agent, action, details in audit_entries:
             db.add(AuditLog(
                 license_id=license1.id,
                 agent_name=agent,
                 action=action,
                 details=details,
-                model_used=model,
-                tokens_used=tokens,
-            ))
-
-        # --- License #2 (Marcus Chen - Sports campaign) ---
-        license2 = LicenseRequest(
-            brand_id=brand.id,
-            talent_id=talent2.id,
-            status="awaiting_approval",
-            use_case="UK fitness and wellness campaign — social media ads and app imagery featuring AI-generated athletic lifestyle content.",
-            content_type="image",
-            desired_duration_days=60,
-            desired_regions="UK",
-            proposed_price=4200.0,
-            risk_score="low",
-            risk_details='{"content_risk":"low","brand_risk":"low","legal_risk":"low","ethical_risk":"low","geographic_risk":"low"}',
-            negotiation_notes="Base price £3,500 adjusted to £4,200 for 60-day UK-only image license. Includes 10% platform fee. Competitive rate for sports/fitness talent.",
-            compliance_notes="All checks passed. Sports and Healthcare categories permitted. No restricted category overlap. GDPR-compliant.",
-            orchestration_status="completed",
-            fingerprint_id="FP-MARCUS-2026-001",
-            gen_prompt="Dynamic sports photography style. Marcus Chen, male athlete, late 20s, strong athletic build. Fitness campaign setting — modern gym environment with natural lighting. Wearing premium athletic wear. Confident, energetic expression. Clean, professional sports brand aesthetic.",
-            payment_status="unpaid",
-        )
-        db.add(license2)
-        db.flush()
-
-        # --- Contract #2 ---
-        contract2 = Contract(
-            license_id=license2.id,
-            contract_text="""INTELLECTUAL PROPERTY LICENSING AGREEMENT
-
-THIS AGREEMENT is made on the date of digital execution between:
-
-LICENSOR: Marcus Chen ("the Talent")
-LICENSEE: LuxFashion UK ("the Brand")
-
-1. DEFINITIONS AND INTERPRETATION
-"Licensed Material" means the AI-generated likeness of the Talent.
-"Permitted Use" means social media advertising and mobile application imagery.
-"Territory" means United Kingdom.
-"License Period" means 60 calendar days from the Effective Date.
-
-2. GRANT OF LICENSE
-The Licensor grants to the Licensee a non-exclusive, non-transferable license to use the Licensed Material for the Permitted Use within the Territory for the License Period.
-
-3. CONSIDERATION
-The Licensee shall pay the Licensor the sum of GBP 4,200 (four thousand two hundred pounds) inclusive of platform fees.
-
-4. INTELLECTUAL PROPERTY RIGHTS
-All intellectual property rights in the Talent's likeness remain vested in the Licensor. The Licensee acquires no ownership rights.
-
-5. AI TRAINING RESTRICTION
-The Licensed Material shall NOT be used for training artificial intelligence models, machine learning systems, or any automated learning processes.
-
-6. DATA PROTECTION (GDPR)
-Both parties shall comply with the UK General Data Protection Regulation and the Data Protection Act 2018.
-
-7. CONTENT RESTRICTIONS
-The Licensed Material shall not be used in connection with: alcohol, gambling, tobacco, political campaigns, or any content that may bring the Talent into disrepute.
-
-8. MORAL RIGHTS
-The Licensor asserts their moral rights under Chapter IV of the Copyright, Designs and Patents Act 1988.
-
-9. TERMINATION
-Either party may terminate this Agreement with 30 days written notice. Upon termination, the Licensee shall cease all use of the Licensed Material within 14 days.
-
-10. DISPUTE RESOLUTION
-Any dispute shall be resolved through mediation under the CEDR Model Mediation Procedure, followed by arbitration under the Arbitration Act 1996 if necessary.
-
-11. GOVERNING LAW
-This Agreement shall be governed by and construed in accordance with the laws of England and Wales.
-
-12. CONSUMER RIGHTS
-Nothing in this Agreement affects the statutory rights of either party under the Consumer Rights Act 2015.
-
-Executed as a digital agreement through the Face Library platform.
-""",
-            generated_by="contract_agent",
-            model_used="glm-4-plus",
-            uk_law_compliant=True,
-            ip_clauses="Sections 4, 5, 8: IP retention, AI training restriction, moral rights assertion",
-        )
-        db.add(contract2)
-
-        # --- Audit Logs (License #2) ---
-        audit_entries_2 = [
-            ("orchestrator", "pipeline_started", "License #2 pipeline initiated", "local", 0),
-            ("compliance", "risk_assessment", "Risk assessment completed: LOW risk across all 5 dimensions", "deepseek-v3.2", 1652),
-            ("compliance", "compliance_summary", "Executive summary generated — all checks passed", "glm-4-plus", 891),
-            ("negotiator", "price_negotiation", "Price set at £4,200 for 60-day UK image license", "qwen3-235b-a22b-instruct-2507", 1943),
-            ("contract", "contract_generation", "12-section UK-law-compliant IP licensing agreement generated", "glm-4-plus", 3521),
-            ("gen_orchestrator", "avatar_prompt", "Generation prompt created for sports/fitness style", "deepseek-v3.2", 1087),
-            ("fingerprint", "likeness_scan", "Fingerprint ID FP-MARCUS-2026-001 registered", "deepseek-v3.2", 792),
-            ("web3_contract", "onchain_rights", "ERC-721 metadata generated for Polygon deployment", "local", 0),
-            ("orchestrator", "pipeline_completed", "All 7 pipeline steps completed successfully", "local", 0),
-        ]
-        for agent, action, details, model, tokens in audit_entries_2:
-            db.add(AuditLog(
-                license_id=license2.id,
-                agent_name=agent,
-                action=action,
-                details=details,
-                model_used=model,
-                tokens_used=tokens,
             ))
 
         db.commit()
-        print("[Seed] Demo data inserted: 3 users, 2 talents, 1 brand, 2 licenses, 2 contracts, 18 audit logs")
+        print("[Seed] Demo data: 3 users, 2 talents, 1 client, 1 license, 1 contract")
     except Exception as e:
         db.rollback()
-        print(f"[Seed] Error seeding demo data: {e}")
+        print(f"[Seed] Error: {e}")
     finally:
         db.close()
 

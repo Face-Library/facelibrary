@@ -6,10 +6,6 @@ openai==1.82.0
 pydantic==2.10.4
 python-multipart==0.0.20
 httpx==0.28.1
-# Supabase (auth + PostgreSQL)
 supabase==2.13.0
 psycopg2-binary==2.9.10
-# AnyWay bounty: Anyway SDK (auto-instruments OpenAI calls + OpenTelemetry tracing)
-anyway-sdk
-# AnyWay bounty: Stripe Connect for commercialization
 stripe>=8.0.0
