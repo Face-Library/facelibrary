@@ -64,15 +64,27 @@ app.add_middleware(
 # -- Helpers -----------------------------------------------------------------
 
 def _hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    h = hashlib.sha256((salt + password).encode()).hexdigest()
-    return f"{salt}:{h}"
+    """Hash password. Uses bcrypt if available (for Supabase compat), else sha256."""
+    try:
+        import bcrypt
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    except ImportError:
+        salt = secrets.token_hex(16)
+        h = hashlib.sha256((salt + password).encode()).hexdigest()
+        return f"{salt}:{h}"
 
 
 def _verify_password(password: str, stored: str) -> bool:
+    """Verify password against stored hash. Supports bcrypt ($2b$) and sha256 (salt:hash)."""
     try:
-        salt, h = stored.split(":")
-        return hashlib.sha256((salt + password).encode()).hexdigest() == h
+        if stored.startswith("$2"):
+            # bcrypt hash (from Supabase pgcrypto)
+            import bcrypt
+            return bcrypt.checkpw(password.encode(), stored.encode())
+        else:
+            # sha256 format (salt:hash)
+            salt, h = stored.split(":")
+            return hashlib.sha256((salt + password).encode()).hexdigest() == h
     except Exception:
         return False
 

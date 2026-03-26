@@ -20,6 +20,10 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./face_library.db")
 
+# Support Supabase Postgres pooler URLs (postgres:// -> postgresql://)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
@@ -271,18 +275,24 @@ def init_db():
 
 
 def seed_demo_data():
-    """Populate DB with demo data if empty."""
+    """Populate DB with demo data if empty. Skips if data already exists (e.g. Supabase)."""
     import hashlib
     import secrets
 
     def _hash(password: str) -> str:
-        salt = secrets.token_hex(16)
-        h = hashlib.sha256((salt + password).encode()).hexdigest()
-        return f"{salt}:{h}"
+        """Hash for local SQLite. Supabase uses bcrypt via pgcrypto."""
+        try:
+            import bcrypt
+            return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        except ImportError:
+            salt = secrets.token_hex(16)
+            h = hashlib.sha256((salt + password).encode()).hexdigest()
+            return f"{salt}:{h}"
 
     db = SessionLocal()
     try:
         if db.query(User).count() > 0:
+            print("[Seed] Data already exists, skipping seed.")
             return
 
         demo_pw = _hash("demo123")
