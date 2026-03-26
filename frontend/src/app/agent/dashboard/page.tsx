@@ -1,15 +1,45 @@
+/**
+ * Agent Dashboard -- Manage talent roster, approvals, and contracts.
+ *
+ * Layout (Figma):
+ * - Top nav: FL logo (black square) + tabs (Dashboard, Talent, Contracts, Analytics, Settings) + user avatar + logout
+ * - 3-column grid (col-span-3 / col-span-6 / col-span-3)
+ *   LEFT: Agency Profile, Managed Talents list, Quick Actions
+ *   CENTER: Onboarding steps, Active Requests table, Talent Management
+ *   RIGHT: AI Agent Assistant, Revenue Overview, Contracts
+ *
+ * Accessible at: /agent/dashboard (requires agent role)
+ */
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Users, Clock, FileText, Shield, MapPin,
-  CheckCircle, XCircle, ChevronDown, ChevronUp,
+  User,
+  Users,
+  Clock,
+  FileText,
+  Shield,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  LogOut,
+  Send,
+  Plus,
+  BarChart3,
+  Mail,
+  Phone,
+  Instagram,
+  Globe,
   Image as ImageIcon,
 } from "lucide-react";
-import DashboardNav from "@/components/DashboardNav";
 import { useAuth } from "@/lib/auth";
 import { getAgent, getAgentRequests, approveLicense } from "@/lib/api";
+
+/* ---------- Types ---------- */
 
 interface ManagedTalent {
   id: number;
@@ -45,32 +75,22 @@ interface RequestData {
   created_at: string;
 }
 
-const CONTRACT_TEMPLATES = [
-  {
-    name: "Standard",
-    desc: "Basic likeness licensing with defined usage rights, duration, and territory. Suitable for most campaigns.",
-    tag: "Coming Soon",
-  },
-  {
-    name: "Exclusive",
-    desc: "Single-brand exclusivity within a category for a set period. Includes competitor restriction clauses.",
-    tag: "Coming Soon",
-  },
-  {
-    name: "Time-Limited",
-    desc: "Short-term campaign usage with automatic expiration. Ideal for seasonal or event-based content.",
-    tag: "Coming Soon",
-  },
-];
+/* ---------- Constants ---------- */
+
+const NAV_TABS = ["Dashboard", "Talent", "Contracts", "Analytics", "Settings"];
+
+/* ---------- Component ---------- */
 
 export default function AgentDashboardPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState<AgentProfileData | null>(null);
   const [requests, setRequests] = useState<RequestData[]>([]);
   const [expandedRequest, setExpandedRequest] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [chatMessage, setChatMessage] = useState("");
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "agent")) {
@@ -80,6 +100,7 @@ export default function AgentDashboardPage() {
     if (user?.profile_id) {
       loadData(user.profile_id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const loadData = async (profileId: number) => {
@@ -105,10 +126,15 @@ export default function AgentDashboardPage() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
+
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1E3A5F] border-t-transparent" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
       </div>
     );
   }
@@ -117,197 +143,470 @@ export default function AgentDashboardPage() {
   const pendingRequests = requests.filter(
     (r) => r.status === "awaiting_approval" || r.status === "pending"
   );
+  const activeRequests = requests.filter(
+    (r) => r.status === "active" || r.status === "approved"
+  );
+  const totalRevenue = activeRequests.reduce(
+    (sum, r) => sum + (r.proposed_price ?? 0),
+    0
+  );
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      <DashboardNav />
-
-      <div className="max-w-6xl mx-auto px-8 lg:px-16 py-10">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold text-[#0B0B0F]">Agent Dashboard</h1>
-          <p className="font-body text-sm text-[#6B6B73]">
-            {profile?.agency_name || "Your Agency"} — Manage talent and approvals
-          </p>
-        </div>
-
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-          <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Users className="w-5 h-5 text-[#1E3A5F]" />
-              <span className="font-body text-xs uppercase tracking-wider text-[#6B6B73]">
-                Managed Talents
-              </span>
-            </div>
-            <p className="font-display text-3xl text-[#0B0B0F]">{managedTalents.length}</p>
-          </div>
-          <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Clock className="w-5 h-5 text-amber-600" />
-              <span className="font-body text-xs uppercase tracking-wider text-[#6B6B73]">
-                Pending Approvals
-              </span>
-            </div>
-            <p className="font-display text-3xl text-[#0B0B0F]">{pendingRequests.length}</p>
-          </div>
-          <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <FileText className="w-5 h-5 text-emerald-600" />
-              <span className="font-body text-xs uppercase tracking-wider text-[#6B6B73]">
-                Total Requests
-              </span>
-            </div>
-            <p className="font-display text-3xl text-[#0B0B0F]">{requests.length}</p>
-          </div>
-        </div>
-
-        {/* Managed Talents */}
-        <div className="bg-white border border-[#E0E0DA] rounded-lg p-6 mb-6">
-          <h3 className="font-body text-sm font-semibold text-[#0B0B0F] flex items-center gap-2 mb-4">
-            <Users className="h-4 w-4" /> Managed Talents
-          </h3>
-          {managedTalents.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="font-body text-sm text-[#6B6B73] mb-3">No talents linked yet.</p>
-              <p className="font-body text-xs text-[#9B9BA3]">
-                Talents can link to your agency during onboarding, or you can send them an invite.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {managedTalents.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center gap-4 rounded-lg border border-[#E0E0DA] p-4"
+    <div className="min-h-screen bg-white">
+      {/* ===== Top Nav Bar ===== */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">FL</span>
+              </div>
+            </Link>
+            <div className="hidden md:flex items-center gap-1">
+              {NAV_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-4 text-sm transition-colors relative ${
+                    activeTab === tab
+                      ? "text-black font-medium"
+                      : "text-gray-500 hover:text-black"
+                  }`}
                 >
-                  {/* Talent image */}
-                  <div className="w-12 h-12 rounded-full bg-[#F5F5F0] border border-[#E0E0DA] flex items-center justify-center overflow-hidden shrink-0">
-                    {t.image_url ? (
-                      <img
-                        src={t.image_url}
-                        alt={t.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon className="w-5 h-5 text-[#B0B0B8]" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body text-sm font-medium text-[#0B0B0F]">{t.name}</p>
-                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                      {t.categories && (
-                        <span className="font-body text-[10px] px-2 py-0.5 rounded-full bg-[#4F6AF6]/10 text-[#4F6AF6]">
-                          {t.categories}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-[#6B6B73]" />
-                        <span className="font-body text-xs text-[#6B6B73] capitalize">
-                          {t.geo_scope}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Pending Approvals */}
-        <div className="bg-white border border-[#E0E0DA] rounded-lg p-6 mb-6">
-          <h3 className="font-body text-sm font-semibold text-[#0B0B0F] flex items-center gap-2 mb-4">
-            <Shield className="h-4 w-4" /> Pending Approvals
-          </h3>
-          {pendingRequests.length === 0 ? (
-            <p className="font-body text-sm text-[#6B6B73] py-4">No pending approvals.</p>
-          ) : (
-            <div className="space-y-3">
-              {pendingRequests.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-lg border border-[#E0E0DA] overflow-hidden"
-                >
-                  <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-[#F5F5F0]/50 transition-colors"
-                    onClick={() =>
-                      setExpandedRequest(expandedRequest === r.id ? null : r.id)
-                    }
-                  >
-                    <div>
-                      <p className="font-body text-sm font-medium text-[#0B0B0F]">
-                        {r.talent_name} &larr; {r.brand_name}
-                      </p>
-                      <p className="font-body text-xs text-[#6B6B73]">
-                        {r.content_type} &middot; {r.desired_duration_days} days
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-body text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-700 capitalize">
-                        {r.status.replace("_", " ")}
-                      </span>
-                      {expandedRequest === r.id ? (
-                        <ChevronUp className="h-4 w-4 text-[#6B6B73]" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-[#6B6B73]" />
-                      )}
-                    </div>
-                  </div>
-                  {expandedRequest === r.id && (
-                    <div className="px-4 pb-4 border-t border-[#E0E0DA] pt-3">
-                      <p className="font-body text-xs text-[#6B6B73] mb-2">
-                        Use case: {r.use_case}
-                      </p>
-                      {r.proposed_price != null && (
-                        <p className="font-body text-xs text-[#6B6B73] mb-2">
-                          Suggested price: &pound;{r.proposed_price.toLocaleString()} GBP
-                        </p>
-                      )}
-                      <div className="flex gap-2 mt-3">
-                        <button
-                          onClick={() => handleRequestAction(r.id, true)}
-                          className="flex items-center gap-1 font-body text-xs border border-[#E0E0DA] px-3 py-1.5 rounded-md hover:bg-green-50 transition-colors"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5 text-green-600" /> Approve
-                        </button>
-                        <button
-                          onClick={() => handleRequestAction(r.id, false)}
-                          className="flex items-center gap-1 font-body text-xs text-[#6B6B73] hover:text-red-600 transition-colors"
-                        >
-                          <XCircle className="h-3.5 w-3.5" /> Reject
-                        </button>
-                      </div>
-                    </div>
+                  {tab}
+                  {activeTab === tab && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
                   )}
-                </div>
+                </button>
               ))}
             </div>
-          )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {profile?.name || user?.name || "---"}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+      </nav>
 
-        {/* Contract Templates */}
-        <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-          <h3 className="font-body text-sm font-semibold text-[#0B0B0F] flex items-center gap-2 mb-4">
-            <FileText className="h-4 w-4" /> Contract Templates
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {CONTRACT_TEMPLATES.map((t) => (
-              <div
-                key={t.name}
-                className="rounded-lg border border-[#E0E0DA] p-5"
-              >
-                <h4 className="font-body text-sm font-medium text-[#0B0B0F] mb-2">
-                  {t.name}
-                </h4>
-                <p className="font-body text-xs text-[#6B6B73] mb-4 leading-relaxed">
-                  {t.desc}
-                </p>
-                <span className="font-body text-[10px] px-2 py-0.5 rounded-full bg-[#F5F5F0] text-[#6B6B73]">
-                  {t.tag}
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* ===== 3-column grid ===== */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* ===== LEFT COLUMN (col-span-3) ===== */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* Agency Profile */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Agency Profile
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-base font-semibold text-gray-900">
+                    {profile?.agency_name || "Your Agency"}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {profile?.name || user?.name || "---"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span className="truncate">
+                    {profile?.email || user?.email || "---"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>{profile?.country || "United Kingdom"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>+44 20 7946 0000</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>
+                    @{(profile?.agency_name || "agency")
+                      .toLowerCase()
+                      .replace(/\s/g, "")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Managed Talents */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Managed Talents
+                </h3>
+                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {managedTalents.length}
                 </span>
               </div>
-            ))}
+              {managedTalents.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No talents linked yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {managedTalents.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {t.image_url ? (
+                          <img
+                            src={t.image_url}
+                            alt={t.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {t.name}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize">
+                          {t.geo_scope}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Quick Actions
+              </h3>
+              <div className="space-y-2">
+                <button className="w-full flex items-center gap-2 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add Talent
+                </button>
+                <button className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                  <FileText className="w-3.5 h-3.5" /> Generate Contract
+                </button>
+                <button className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                  <BarChart3 className="w-3.5 h-3.5" /> View Analytics
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== CENTER COLUMN (col-span-6) ===== */}
+          <div className="col-span-12 lg:col-span-6 space-y-6">
+            {/* Onboarding Steps */}
+            {managedTalents.length === 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Get Started
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Complete these steps to set up your agency.
+                </p>
+                <div className="space-y-3">
+                  {[
+                    "Complete agency profile",
+                    "Add your first talent",
+                    "Set approval workflows",
+                    "Configure contract templates",
+                  ].map((step, i) => (
+                    <div key={step} className="flex items-center gap-3">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                          i === 0
+                            ? "bg-black text-white"
+                            : "bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {i + 1}
+                      </div>
+                      <span className="text-sm text-gray-700">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Active Requests */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Active Requests
+              </h3>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-500">No requests yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2.5 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Talent
+                        </th>
+                        <th className="text-left py-2.5 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Brand
+                        </th>
+                        <th className="text-left py-2.5 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="text-left py-2.5 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Price
+                        </th>
+                        <th className="text-left py-2.5 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="text-right py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requests.map((r) => (
+                        <tr
+                          key={r.id}
+                          className="border-b border-gray-100 last:border-0"
+                        >
+                          <td className="py-3 pr-4">
+                            <span className="font-medium text-gray-900">
+                              {r.talent_name}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-gray-500 text-xs">
+                            {r.brand_name}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-500 text-xs capitalize">
+                            {r.content_type}
+                          </td>
+                          <td className="py-3 pr-4 text-xs font-medium text-gray-900">
+                            {r.proposed_price != null
+                              ? `\u00A3${r.proposed_price.toLocaleString()}`
+                              : "---"}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className={`text-xs px-2.5 py-0.5 rounded-full capitalize font-medium ${
+                                r.status === "active" || r.status === "approved"
+                                  ? "bg-green-50 text-green-700"
+                                  : r.status === "rejected"
+                                  ? "bg-red-50 text-red-700"
+                                  : r.status === "awaiting_approval" ||
+                                    r.status === "pending"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {r.status.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {(r.status === "awaiting_approval" ||
+                                r.status === "pending") && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleRequestAction(r.id, true)
+                                    }
+                                    className="flex items-center gap-1 text-xs font-medium bg-black text-white px-2.5 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                                  >
+                                    <CheckCircle className="h-3 w-3" /> Approve
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleRequestAction(r.id, false)
+                                    }
+                                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
+                                  >
+                                    <XCircle className="h-3 w-3" /> Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Talent Management */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Talent Management
+                </h3>
+                <button className="bg-black text-white py-1.5 px-3 rounded-lg text-xs hover:bg-gray-800 transition-colors">
+                  + Add Talent
+                </button>
+              </div>
+              {managedTalents.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-1">
+                    No talents linked yet.
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Talents can link to your agency during onboarding, or you
+                    can send them an invite.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {managedTalents.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-4 rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {t.image_url ? (
+                          <img
+                            src={t.image_url}
+                            alt={t.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">
+                          {t.name}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          {t.categories && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                              {t.categories}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <MapPin className="h-3 w-3" />
+                            <span className="capitalize">{t.geo_scope}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <button className="text-xs text-gray-500 hover:text-black transition-colors">
+                        Manage &rarr;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ===== RIGHT COLUMN (col-span-3) ===== */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* AI Agent Assistant */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-black text-white px-4 py-3">
+                <h3 className="text-sm font-medium">AI Agent Assistant</h3>
+              </div>
+              <div className="p-4 h-48 overflow-y-auto">
+                <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 mb-3">
+                  Hi! I can help you manage your talent roster, review
+                  contracts, and analyze campaign performance. What would you
+                  like to do?
+                </div>
+              </div>
+              <div className="border-t border-gray-200 p-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  placeholder="Ask me anything..."
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                />
+                <button className="bg-black text-white p-2 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
+                  <Send className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Revenue Overview */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Revenue Overview
+              </h3>
+              <div className="text-center py-3 rounded-lg bg-gray-50 border border-gray-200 mb-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {"\u00A3"}{totalRevenue.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Total Revenue</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">This Month</span>
+                  <span className="font-medium text-gray-900">
+                    {"\u00A3"}{Math.round(totalRevenue * 0.3).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Pending</span>
+                  <span className="font-medium text-amber-600">
+                    {"\u00A3"}
+                    {pendingRequests
+                      .reduce((sum, r) => sum + (r.proposed_price ?? 0), 0)
+                      .toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Contracts */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Contracts
+              </h3>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-500">No contracts yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {requests.slice(0, 4).map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-900 truncate">
+                          {r.talent_name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {r.brand_name}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                          r.status === "active" || r.status === "approved"
+                            ? "bg-green-50 text-green-700"
+                            : r.status === "pending" ||
+                              r.status === "awaiting_approval"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {r.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

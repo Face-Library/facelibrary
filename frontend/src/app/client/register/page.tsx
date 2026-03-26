@@ -3,330 +3,201 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check } from "lucide-react";
 import { registerClient } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-
-const industries = [
-  "Fashion",
-  "Beauty",
-  "Technology",
-  "Food & Beverage",
-  "Health & Wellness",
-  "Lifestyle",
-  "Travel",
-  "Auto",
-  "Real Estate",
-  "Consumer Electronics",
-  "Entertainment",
-  "Other",
-];
-
-const roles = [
-  "CEO / Founder",
-  "Creative Director",
-  "Creative Producer",
-  "Casting Director",
-];
-
-const referralSources = [
-  "Google",
-  "Social media",
-  "From a talent",
-  "From a brand",
-];
 
 export default function ClientRegisterPage() {
   const router = useRouter();
   const { user, setUser } = useAuth();
-  const [form, setForm] = useState({
-    company_name: "",
-    email: "",
-    confirmEmail: "",
-    phone: "",
-    website: "",
-    ai_tools_used: "",
-    role_title: "",
-    referral_source: "",
-    industry: "",
-  });
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState("");
 
-  const update = (field: string, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const [formData, setFormData] = useState({
+    firstName: "",
+    surname: "",
+    companyName: "",
+    companyEmail: "",
+    confirmEmail: "",
+    password: "",
+    industry: "",
+    phoneNumber: "",
+    zipCode: "",
+    companyAddress: "",
+    linkedIn: "",
+    instagram: "",
+    role: "",
+    hearAbout: "",
+    agreeToTerms: false,
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.email !== form.confirmEmail) {
-      setErrorMsg("Email addresses do not match.");
-      return;
-    }
-    if (!form.industry) {
-      setErrorMsg("Please select an industry.");
-      return;
-    }
-    if (!form.role_title) {
-      setErrorMsg("Please select your role.");
-      return;
-    }
-    if (!form.referral_source) {
-      setErrorMsg("Please select how you heard about us.");
-      return;
-    }
-    if (!agreedToTerms) {
-      setErrorMsg("You must agree to the Terms of Service.");
-      return;
-    }
-    setStatus("loading");
-    setErrorMsg("");
+    if (!formData.agreeToTerms) { setError("Please accept the Terms of Service and Privacy Policy"); return; }
+    if (formData.companyEmail !== formData.confirmEmail) { setError("Email addresses do not match"); return; }
+    setError("");
+    setLoading(true);
+
     try {
       const res = await registerClient({
         user_id: user?.user_id,
-        company_name: form.company_name,
-        industry: form.industry,
-        website: form.website || undefined,
-        phone: form.phone,
-        role_title: form.role_title,
-        referral_source: form.referral_source,
-        ai_tools_used: form.ai_tools_used || undefined,
+        company_name: formData.companyName,
+        industry: formData.industry,
+        website: formData.linkedIn || undefined,
+        phone: formData.phoneNumber,
+        role_title: formData.role,
+        referral_source: formData.hearAbout,
       });
       setUser({
         user_id: res.user_id || res.id,
-        email: form.email,
-        name: form.company_name,
+        email: formData.companyEmail,
+        name: formData.companyName,
         role: "client",
         profile_id: res.id,
       });
-      setStatus("success");
-      setTimeout(() => router.push("/client/dashboard"), 1500);
+      router.push("/client/dashboard");
     } catch {
-      setStatus("error");
-      setErrorMsg("Registration failed. Please try again.");
+      setError("Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (status === "success") {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-8">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 rounded-full bg-[#0B0B0F] flex items-center justify-center mx-auto mb-6">
-            <Check className="w-8 h-8 text-[#FAFAF8]" />
-          </div>
-          <h1 className="font-display text-3xl text-[#0B0B0F] mb-2">Account Created!</h1>
-          <p className="font-body text-[#6B6B73] mb-6">
-            Redirecting to your dashboard...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const inputClass = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent";
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-[#E0E0DA] bg-white">
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#0B0B0F]">
-              <span className="font-display text-sm font-bold italic text-[#0B0B0F]">FL</span>
-            </div>
-            <span className="font-body text-sm font-bold tracking-[0.15em] text-[#0B0B0F]">FACE LIBRARY</span>
-          </Link>
-          <Link href="/login" className="font-body text-sm text-[#6B6B73] hover:text-[#0B0B0F] transition-colors">
-            Sign in
-          </Link>
+    <div className="min-h-screen bg-white py-12 px-6">
+      <div className="max-w-2xl mx-auto">
+        <div className="mb-8">
+          <Link href="/" className="text-sm text-gray-600 hover:text-black mb-4 inline-block">&larr; Back to Home</Link>
+          <h1 className="text-3xl font-medium mb-2">Join now</h1>
+          <p className="text-gray-600">Create your brand account to explore and license talent from our Face Library.</p>
         </div>
-      </header>
 
-      {/* Form */}
-      <main className="flex-1 flex items-start justify-center px-6 pb-16">
-        <div className="w-full max-w-[520px]">
-          <div className="text-center mb-10">
-            <h1 className="font-display text-3xl md:text-4xl font-light text-[#0B0B0F] mb-3">
-              Join Face Library
-            </h1>
-            <p className="font-body text-[15px] text-[#6B6B73]">
-              Create your client account to license digital talent
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Company Name */}
-            <div>
-              <input
-                type="text"
-                required
-                value={form.company_name}
-                onChange={(e) => update("company_name", e.target.value)}
-                placeholder="Company Name"
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors"
-              />
-            </div>
-
-            {/* Company Email + Confirm Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => update("email", e.target.value)}
-                placeholder="Company Email"
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors"
-              />
-              <input
-                type="email"
-                required
-                value={form.confirmEmail}
-                onChange={(e) => update("confirmEmail", e.target.value)}
-                placeholder="Confirm Email"
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors"
-              />
-            </div>
-
-            {/* Phone + Website */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input
-                type="tel"
-                required
-                value={form.phone}
-                onChange={(e) => update("phone", e.target.value)}
-                placeholder="Phone"
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors"
-              />
-              <input
-                type="url"
-                value={form.website}
-                onChange={(e) => update("website", e.target.value)}
-                placeholder="Website (optional)"
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors"
-              />
-            </div>
-
-            {/* AI Tools Used (optional) */}
-            <div>
-              <textarea
-                value={form.ai_tools_used}
-                onChange={(e) => update("ai_tools_used", e.target.value)}
-                placeholder="AI Tools Used (optional) — e.g. Midjourney, DALL-E, Runway..."
-                rows={3}
-                className="w-full bg-white border border-[#E0E0DA] rounded-lg px-4 py-3 font-body text-sm text-[#0B0B0F] placeholder-[#9B9BA3] focus:outline-none focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] transition-colors resize-none"
-              />
-            </div>
-
-            {/* Role Dropdown */}
-            <div>
-              <p className="font-body text-[13px] text-[#6B6B73] mb-1">Your Role</p>
-              <select
-                value={form.role_title}
-                onChange={(e) => update("role_title", e.target.value)}
-                required
-                className="w-full bg-[#F8F8FA] border border-[#E8E8EC] rounded-xl px-5 py-3.5 font-body text-[15px] text-[#0B0B0F] focus:outline-none focus:ring-2 focus:ring-[#4F6AF6]/30 focus:border-[#0B0B0F] transition-all appearance-none"
-              >
-                <option value="" disabled>Select your role...</option>
-                {roles.map((role) => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Referral Source Dropdown */}
-            <div>
-              <p className="font-body text-[13px] text-[#6B6B73] mb-1">How did you hear about us?</p>
-              <select
-                value={form.referral_source}
-                onChange={(e) => update("referral_source", e.target.value)}
-                required
-                className="w-full bg-[#F8F8FA] border border-[#E8E8EC] rounded-xl px-5 py-3.5 font-body text-[15px] text-[#0B0B0F] focus:outline-none focus:ring-2 focus:ring-[#4F6AF6]/30 focus:border-[#0B0B0F] transition-all appearance-none"
-              >
-                <option value="" disabled>Select referral source...</option>
-                {referralSources.map((src) => (
-                  <option key={src} value={src}>{src}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Industry Selection Grid */}
-            <div className="pt-2">
-              <p className="font-body text-[13px] text-[#6B6B73] mb-1">Industry</p>
-              <p className="font-body text-[12px] text-[#9B9BA3] mb-3">Select your industry from the categories below</p>
-              <div className="grid grid-cols-2 gap-2.5">
-                {industries.map((ind) => (
-                  <label
-                    key={ind}
-                    className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border cursor-pointer transition-all ${
-                      form.industry === ind
-                        ? "border-[#1E3A5F] bg-[#1E3A5F]/5"
-                        : "border-[#E0E0DA] bg-white hover:border-[#C0C0BA]"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                        form.industry === ind ? "border-[#0B0B0F]" : "border-[#C0C0BA]"
-                      }`}
-                    >
-                      {form.industry === ind && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#0B0B0F]" />
-                      )}
-                    </div>
-                    <span className="font-body text-[13px] text-[#0B0B0F]">{ind}</span>
-                  </label>
-                ))}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Row 1 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-2">First name</label>
+                <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Surname</label>
+                <input type="text" name="surname" value={formData.surname} onChange={handleChange} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Company name</label>
+                <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} required className={inputClass} />
               </div>
             </div>
 
-            {/* Terms Checkbox */}
-            <div className="pt-2">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <div className="mt-0.5">
-                  <input
-                    type="checkbox"
-                    checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                      agreedToTerms
-                        ? "border-[#0B0B0F] bg-[#0B0B0F]"
-                        : "border-[#C0C0BA] bg-white"
-                    }`}
-                  >
-                    {agreedToTerms && <Check className="w-3.5 h-3.5 text-white" />}
-                  </div>
-                </div>
-                <span className="font-body text-[13px] text-[#6B6B73] leading-relaxed">
-                  I agree to the{" "}
-                  <Link href="/terms" className="underline text-[#0B0B0F] underline hover:no-underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" className="underline text-[#0B0B0F] underline hover:no-underline">
-                    Privacy Policy
-                  </Link>
-                </span>
-              </label>
+            {/* Row 2 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-2">Company email</label>
+                <input type="email" name="companyEmail" value={formData.companyEmail} onChange={handleChange} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Confirm email</label>
+                <input type="email" name="confirmEmail" value={formData.confirmEmail} onChange={handleChange} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Password</label>
+                <input type="password" name="password" value={formData.password} onChange={handleChange} required className={inputClass} />
+              </div>
             </div>
 
-            {/* Submit */}
+            {/* Row 3 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-2">Industry</label>
+                <select name="industry" value={formData.industry} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select industry</option>
+                  <option value="fashion">Fashion</option>
+                  <option value="beauty">Beauty</option>
+                  <option value="tech">Tech</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Phone number</label>
+                <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} required placeholder="+1 (555) 000-0000" className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Zip / Post code</label>
+                <input type="text" name="zipCode" value={formData.zipCode} onChange={handleChange} required className={inputClass} />
+              </div>
+            </div>
+
+            {/* Row 4 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-2">Company address</label>
+                <input type="text" name="companyAddress" value={formData.companyAddress} onChange={handleChange} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">LinkedIn link</label>
+                <input type="url" name="linkedIn" value={formData.linkedIn} onChange={handleChange} placeholder="https://linkedin.com/company/..." className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Instagram link</label>
+                <input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@company" className={inputClass} />
+              </div>
+            </div>
+
+            {/* Row 5 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm mb-2">Your role</label>
+                <select name="role" value={formData.role} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select your role</option>
+                  <option value="ceo">CEO / Founder</option>
+                  <option value="creative-director">Creative Director</option>
+                  <option value="creative-producer">Creative Producer</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm mb-2">How did you hear about us?</label>
+                <select name="hearAbout" value={formData.hearAbout} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select an option</option>
+                  <option value="google">Google</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="referral">Referral</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Terms */}
+            <div className="space-y-2">
+              <div className="flex items-start gap-3">
+                <input type="checkbox" name="agreeToTerms" checked={formData.agreeToTerms} onChange={handleChange} className="mt-1 w-4 h-4 border-gray-300 rounded focus:ring-2 focus:ring-black" />
+                <label className="text-sm text-gray-600">
+                  I have read and accepted the{" "}
+                  <Link href="/privacy" className="text-black underline hover:no-underline">Privacy Policy</Link> and the{" "}
+                  <Link href="/terms" className="text-black underline hover:no-underline">License Agreement</Link>
+                </label>
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <p className="text-xs text-gray-500 ml-7">You must accept before continuing</p>
+            </div>
+
             <div className="pt-4">
-              <button
-                type="submit"
-                disabled={status === "loading"}
-                className="w-full flex items-center justify-center gap-2 bg-[#0B0B0F] text-[#FAFAF8] font-body text-sm font-semibold py-3.5 px-8 rounded-lg hover:bg-[#1a1a22] transition-colors disabled:opacity-50"
-              >
-                {status === "loading" ? "Creating..." : "Create Account"}
-                <ArrowRight className="w-4 h-4" />
+              <button type="submit" disabled={loading} className="w-full bg-black text-white py-4 px-6 rounded-lg hover:bg-gray-800 transition-colors text-lg disabled:opacity-50">
+                {loading ? "Creating..." : "Create Account"}
               </button>
             </div>
-
-            {errorMsg && (
-              <p className="font-body text-sm text-red-500 text-center">{errorMsg}</p>
-            )}
           </form>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,35 @@
+/**
+ * Client/Brand Dashboard -- Find talent, manage offers, track spend.
+ *
+ * Layout (Figma):
+ * - Top nav: FL logo (black square) + tabs + user avatar + logout
+ * - 3-column grid (col-span-3 / col-span-6 / col-span-3)
+ *   LEFT: Brand Profile card
+ *   CENTER: Find Talent grid, Selected Talents, Offers in Progress
+ *   RIGHT: AI Campaign Assistant, Campaign Spend, Contracts & Payments
+ *
+ * Accessible at: /client/dashboard (requires client role)
+ */
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Send, FileText, CreditCard } from "lucide-react";
-import DashboardNav from "@/components/DashboardNav";
+import {
+  User,
+  Send,
+  FileText,
+  CreditCard,
+  LogOut,
+  MessageCircle,
+  Eye,
+  CheckCircle,
+  Building2,
+  Globe,
+  Mail,
+  Tag,
+  MapPin,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   listTalents,
@@ -14,6 +39,8 @@ import {
   createCheckoutSession,
 } from "@/lib/api";
 
+/* ---------- Types ---------- */
+
 interface TalentListItem {
   id: number;
   name: string;
@@ -22,6 +49,7 @@ interface TalentListItem {
   min_price_per_use: number;
   geo_scope: string;
   approval_mode: string;
+  photo_url?: string | null;
 }
 
 interface ClientRequestItem {
@@ -39,6 +67,10 @@ interface ClientRequestItem {
   created_at: string;
 }
 
+/* ---------- Constants ---------- */
+
+const NAV_TABS = ["Dashboard", "Talent", "Campaigns", "Contracts", "Settings"];
+
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-yellow-50 text-yellow-700",
   under_review: "bg-blue-50 text-blue-700",
@@ -46,27 +78,37 @@ const STATUS_BADGE: Record<string, string> = {
   approved: "bg-green-50 text-green-700",
   rejected: "bg-red-50 text-red-700",
   active: "bg-emerald-50 text-emerald-700",
+  on_hold: "bg-gray-100 text-gray-600",
 };
 
+const DEMO_AVATARS = [
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face",
+  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face",
+  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face",
+  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face",
+];
+
+/* ---------- Component ---------- */
+
 export default function ClientDashboardPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [talents, setTalents] = useState<TalentListItem[]>([]);
   const [requests, setRequests] = useState<ClientRequestItem[]>([]);
-
-  // Form state
-  const [talentId, setTalentId] = useState("");
-  const [licenseType, setLicenseType] = useState("standard");
-  const [useCase, setUseCase] = useState("");
-  const [contentType, setContentType] = useState("image");
-  const [duration, setDuration] = useState("30");
-  const [regions, setRegions] = useState("");
-  const [proposedPrice, setProposedPrice] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedTalents, setSelectedTalents] = useState<number[]>([]);
   const [message, setMessage] = useState("");
   const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [payingId, setPayingId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: "assistant",
+      text: "Hello! I can help you find the perfect talent for your campaign. What type of content are you creating?",
+    },
+  ]);
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "client")) {
@@ -74,50 +116,22 @@ export default function ClientDashboardPage() {
       return;
     }
     if (user?.profile_id) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const loadData = async () => {
     try {
       const [t, r] = await Promise.all([
         listTalents(),
-        user?.profile_id ? getClientRequests(user.profile_id) : Promise.resolve([]),
+        user?.profile_id
+          ? getClientRequests(user.profile_id)
+          : Promise.resolve([]),
       ]);
       setTalents(t);
       setRequests(r);
     } catch {
       // silent
     }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.profile_id || !talentId || !useCase) return;
-    setSubmitting(true);
-    setMessage("");
-    try {
-      await createLicenseRequest({
-        brand_id: user.profile_id,
-        talent_id: parseInt(talentId),
-        license_type: licenseType,
-        use_case: useCase,
-        content_type: contentType,
-        desired_duration_days: parseInt(duration),
-        desired_regions: regions || undefined,
-        proposed_price: proposedPrice ? parseFloat(proposedPrice) : undefined,
-      });
-      setMessage("License request created successfully.");
-      setTalentId("");
-      setLicenseType("standard");
-      setUseCase("");
-      setContentType("image");
-      setDuration("30");
-      setRegions("");
-      setProposedPrice("");
-      loadData();
-    } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : "Failed to create request");
-    }
-    setSubmitting(false);
   };
 
   const handleGenerateContract = async (licenseId: number) => {
@@ -145,231 +159,481 @@ export default function ClientDashboardPage() {
     setPayingId(null);
   };
 
+  const toggleSelectTalent = (id: number) => {
+    setSelectedTalents((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
+
+  /* --- Derived stats --- */
+  const totalSpent = requests
+    .filter((r) => r.payment_status === "paid")
+    .reduce((sum, r) => sum + (r.proposed_price ?? 0), 0);
+  const activeCampaigns = requests.filter(
+    (r) => r.status === "active" || r.status === "approved"
+  ).length;
+  const thisMonth = requests.filter((r) => {
+    const d = new Date(r.created_at);
+    const now = new Date();
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1E3A5F] border-t-transparent" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      <DashboardNav />
-
-      <div className="max-w-6xl mx-auto px-8 lg:px-16 py-10">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold text-[#0B0B0F]">Client Dashboard</h1>
-          <p className="font-body text-sm text-[#6B6B73]">Create and manage your license requests</p>
+    <div className="min-h-screen bg-white">
+      {/* ===== Top Nav Bar ===== */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">FL</span>
+              </div>
+            </Link>
+            <div className="hidden md:flex items-center gap-1">
+              {NAV_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-4 text-sm transition-colors relative ${
+                    activeTab === tab
+                      ? "text-black font-medium"
+                      : "text-gray-500 hover:text-black"
+                  }`}
+                >
+                  {tab}
+                  {activeTab === tab && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-medium text-gray-900">
+              {user?.name || "---"}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+      </nav>
 
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* Toast */}
         {message && (
-          <div className="mb-6 p-3 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-body text-sm">
+          <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
             {message}
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Create License Request */}
-          <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-            <h3 className="font-body text-sm font-medium text-[#0B0B0F] mb-4">Create License Request</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Talent Selector */}
-              <div>
-                <label className="block font-body text-sm text-[#0B0B0F] mb-1">Select Talent *</label>
-                <select
-                  value={talentId}
-                  onChange={(e) => setTalentId(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white"
-                >
-                  <option value="">Choose talent...</option>
-                  {talents.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+        {/* ===== 3-column grid ===== */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* ===== LEFT COLUMN (col-span-3) ===== */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* Brand Profile */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Brand Profile
+              </h3>
+              <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+                <Building2 className="w-8 h-8 text-gray-400" />
               </div>
-
-              {/* License Type Radio Group */}
-              <div>
-                <label className="block font-body text-sm text-[#0B0B0F] mb-2">License Type *</label>
-                <div className="flex gap-3">
-                  {[
-                    { value: "standard", label: "Standard" },
-                    { value: "exclusive", label: "Exclusive" },
-                    { value: "time_limited", label: "Time-Limited" },
-                  ].map((opt) => (
-                    <label
-                      key={opt.value}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer transition-all font-body text-sm ${
-                        licenseType === opt.value
-                          ? "border-[#4F6AF6] bg-[#4F6AF6]/5 text-[#0B0B0F]"
-                          : "border-[#E0E0DA] text-[#6B6B73] hover:border-[#C0C0BA]"
-                      }`}
-                    >
-                      <div
-                        className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                          licenseType === opt.value ? "border-[#4F6AF6]" : "border-[#C8C8D0]"
-                        }`}
+              <div className="space-y-3">
+                <div>
+                  <p className="text-base font-semibold text-gray-900">
+                    {user?.name || "Your Brand"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Technology & Media</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Global</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span className="truncate">{user?.email || "---"}</span>
+                </div>
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Categories
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Fashion", "Beauty", "Tech"].map((cat) => (
+                      <span
+                        key={cat}
+                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
                       >
-                        {licenseType === opt.value && (
-                          <div className="w-2 h-2 rounded-full bg-[#4F6AF6]" />
-                        )}
-                      </div>
-                      {opt.label}
-                    </label>
-                  ))}
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Target Regions
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["UK", "EU", "US"].map((r) => (
+                      <span
+                        key={r}
+                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
+                      >
+                        {r}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-
-              {/* Use Case */}
-              <div>
-                <label className="block font-body text-sm text-[#0B0B0F] mb-1">Use Case / Campaign *</label>
-                <textarea
-                  value={useCase}
-                  onChange={(e) => setUseCase(e.target.value)}
-                  required
-                  rows={3}
-                  className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white resize-none"
-                  placeholder="Describe how you plan to use the talent's likeness..."
-                />
-              </div>
-
-              {/* Content Type & Duration */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-body text-sm text-[#0B0B0F] mb-1">Content Type</label>
-                  <select
-                    value={contentType}
-                    onChange={(e) => setContentType(e.target.value)}
-                    className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white"
-                  >
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-body text-sm text-[#0B0B0F] mb-1">Duration</label>
-                  <select
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white"
-                  >
-                    <option value="30">30 days</option>
-                    <option value="60">60 days</option>
-                    <option value="90">90 days</option>
-                    <option value="180">180 days</option>
-                    <option value="365">365 days</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Regions */}
-              <div>
-                <label className="block font-body text-sm text-[#0B0B0F] mb-1">Regions</label>
-                <input
-                  type="text"
-                  value={regions}
-                  onChange={(e) => setRegions(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white"
-                  placeholder="e.g. US, EU, Global (leave blank for global)"
-                />
-              </div>
-
-              {/* Proposed Price */}
-              <div>
-                <label className="block font-body text-sm text-[#0B0B0F] mb-1">Proposed Price ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={proposedPrice}
-                  onChange={(e) => setProposedPrice(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#E0E0DA] rounded-md font-body text-sm bg-white"
-                  placeholder="Enter your proposed price"
-                />
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 bg-[#0B0B0F] text-[#FAFAF8] font-body text-sm font-medium py-2.5 rounded-md hover:bg-[#1E3A5F] transition-colors disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                {submitting ? "Submitting..." : "Submit Request"}
-              </button>
-            </form>
+            </div>
           </div>
 
-          {/* Your Requests */}
-          <div className="bg-white border border-[#E0E0DA] rounded-lg p-6">
-            <h3 className="font-body text-sm font-medium text-[#0B0B0F] mb-4">Your Requests</h3>
-            {requests.length === 0 ? (
-              <p className="font-body text-sm text-[#6B6B73]">No requests submitted yet.</p>
-            ) : (
-              <div className="space-y-3 max-h-[700px] overflow-y-auto">
-                {requests.map((r) => (
-                  <div key={r.id} className="rounded-lg border border-[#E0E0DA] p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="font-body text-sm font-medium text-[#0B0B0F]">{r.talent_name}</p>
-                      <span
-                        className={`font-body text-xs px-3 py-1 rounded-full capitalize ${
-                          STATUS_BADGE[r.status] || "bg-[#F5F5F0] text-[#6B6B73]"
+          {/* ===== CENTER COLUMN (col-span-6) ===== */}
+          <div className="col-span-12 lg:col-span-6 space-y-6">
+            {/* Find Talent */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Find Talent
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Browse and select talent for your campaigns
+                  </p>
+                </div>
+                <Link
+                  href="/talent/library"
+                  className="text-xs text-gray-500 hover:text-black transition-colors"
+                >
+                  View all &rarr;
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {talents.slice(0, 4).map((t, i) => (
+                  <div
+                    key={t.id}
+                    className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                        {t.photo_url ? (
+                          <img
+                            src={t.photo_url}
+                            alt={t.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={DEMO_AVATARS[i % DEMO_AVATARS.length]}
+                            alt={t.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {t.name}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {(t.categories || "Talent")
+                            .split(",")
+                            .slice(0, 2)
+                            .map((cat) => (
+                              <span
+                                key={cat}
+                                className="text-xs px-1.5 py-0 rounded bg-gray-100 text-gray-500"
+                              >
+                                {cat.trim()}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/talent/library`}
+                        className="flex-1 flex items-center justify-center gap-1 border border-gray-200 text-gray-700 py-1.5 px-3 rounded-lg text-xs hover:bg-gray-50 transition-colors"
+                      >
+                        <Eye className="w-3 h-3" /> View Profile
+                      </Link>
+                      <button
+                        onClick={() => toggleSelectTalent(t.id)}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg text-xs transition-colors ${
+                          selectedTalents.includes(t.id)
+                            ? "bg-green-600 text-white hover:bg-green-700"
+                            : "bg-black text-white hover:bg-gray-800"
                         }`}
                       >
-                        {r.status.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                    <p className="font-body text-xs text-[#6B6B73] mt-1">{r.use_case}</p>
-                    <p className="font-body text-xs text-[#6B6B73]">
-                      {r.content_type} &middot; {r.desired_duration_days} days
-                    </p>
-                    {r.proposed_price != null && (
-                      <p className="font-body text-xs text-[#6B6B73] mt-1">
-                        Price: ${r.proposed_price.toLocaleString()}
-                      </p>
-                    )}
-
-                    <div className="mt-3 flex items-center gap-2 flex-wrap">
-                      {/* Generate Contract */}
-                      <button
-                        onClick={() => handleGenerateContract(r.id)}
-                        disabled={generatingId === r.id}
-                        className="flex items-center gap-1 font-body text-xs bg-[#0B0B0F] text-[#FAFAF8] px-3 py-1.5 rounded-md hover:bg-[#1E3A5F] transition-colors disabled:opacity-50"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        {generatingId === r.id ? "Generating..." : "Generate Contract"}
+                        {selectedTalents.includes(t.id) ? (
+                          <>
+                            <CheckCircle className="w-3 h-3" /> Selected
+                          </>
+                        ) : (
+                          "Select"
+                        )}
                       </button>
-
-                      {/* Pay */}
-                      {(r.status === "approved" || r.status === "active") && r.payment_status !== "paid" && (
-                        <button
-                          onClick={() => handlePay(r.id)}
-                          disabled={payingId === r.id}
-                          className="flex items-center gap-1 font-body text-xs bg-[#1E3A5F] text-white px-3 py-1.5 rounded-md hover:bg-[#0B0B0F] transition-colors disabled:opacity-50"
-                        >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          {payingId === r.id ? "Redirecting..." : "Pay"}
-                        </button>
-                      )}
-
-                      {r.payment_status === "paid" && (
-                        <span className="font-body text-xs text-emerald-600 px-2 py-1">Paid</span>
-                      )}
-
-                      <Link
-                        href={`/license/${r.id}`}
-                        className="font-body text-xs text-[#1E3A5F] hover:underline ml-auto"
-                      >
-                        Details
-                      </Link>
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Selected Talents */}
+            {selectedTalents.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  Selected Talents ({selectedTalents.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTalents.map((id) => {
+                    const t = talents.find((t) => t.id === id);
+                    return t ? (
+                      <div
+                        key={id}
+                        className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+                      >
+                        <span className="text-sm text-gray-900">{t.name}</span>
+                        <button
+                          onClick={() => toggleSelectTalent(id)}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
             )}
+
+            {/* Offers in Progress */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Offers in Progress
+              </h3>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No offers submitted yet. Select talent above to get started.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {requests.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">
+                            {r.talent_name}
+                          </p>
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full capitalize font-medium ${
+                              STATUS_BADGE[r.status] ||
+                              "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {r.status.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 truncate">
+                          {r.use_case}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {r.content_type} &middot; {r.desired_duration_days}{" "}
+                          days
+                          {r.proposed_price != null &&
+                            ` \u00B7 \u00A3${r.proposed_price.toLocaleString()}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        <button
+                          onClick={() => handleGenerateContract(r.id)}
+                          disabled={generatingId === r.id}
+                          className="flex items-center gap-1 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          {generatingId === r.id ? "..." : "Sign"}
+                        </button>
+                        {(r.status === "approved" || r.status === "active") &&
+                          r.payment_status !== "paid" && (
+                            <button
+                              onClick={() => handlePay(r.id)}
+                              disabled={payingId === r.id}
+                              className="flex items-center gap-1 text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              {payingId === r.id ? "..." : "Pay"}
+                            </button>
+                          )}
+                        {r.payment_status === "paid" && (
+                          <span className="text-xs text-emerald-600 font-medium px-2 py-1">
+                            Paid
+                          </span>
+                        )}
+                        <Link
+                          href={`/license/${r.id}`}
+                          className="text-xs text-gray-500 hover:text-gray-900 hover:underline"
+                        >
+                          Details
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ===== RIGHT COLUMN (col-span-3) ===== */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* AI Campaign Assistant */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-black text-white px-4 py-3">
+                <h3 className="text-sm font-medium">AI Campaign Assistant</h3>
+              </div>
+              <div className="p-4 h-48 overflow-y-auto space-y-3">
+                {chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 text-xs ${
+                      msg.role === "assistant"
+                        ? "bg-gray-50 text-gray-700"
+                        : "bg-black text-white ml-4"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-gray-200 p-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    placeholder="Ask about talent..."
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                  <button className="bg-black text-white p-2 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["Find fashion talent", "Budget estimate", "Campaign ideas"].map(
+                    (action) => (
+                      <button
+                        key={action}
+                        className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        {action}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Campaign Spend */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Campaign Spend
+              </h3>
+              <div className="text-center py-3 rounded-lg bg-gray-50 border border-gray-200 mb-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {"\u00A3"}{totalSpent.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Total Spent</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Active Campaigns</span>
+                  <span className="font-medium text-gray-900">
+                    {activeCampaigns}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">This Month</span>
+                  <span className="font-medium text-gray-900">{thisMonth}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Budget Remaining</span>
+                  <span className="font-medium text-green-600">
+                    {"\u00A3"}10,000
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Contracts & Payments */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Contracts & Payments
+              </h3>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-500">No contracts yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {requests.slice(0, 4).map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-900 truncate">
+                          {r.talent_name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {r.status.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => handleGenerateContract(r.id)}
+                          disabled={generatingId === r.id}
+                          className="text-xs bg-black text-white px-2.5 py-1 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        >
+                          Sign
+                        </button>
+                        {(r.status === "approved" || r.status === "active") &&
+                          r.payment_status !== "paid" && (
+                            <button
+                              onClick={() => handlePay(r.id)}
+                              disabled={payingId === r.id}
+                              className="text-xs bg-green-600 text-white px-2.5 py-1 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                            >
+                              Pay
+                            </button>
+                          )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
