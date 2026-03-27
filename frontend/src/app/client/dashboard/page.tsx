@@ -51,6 +51,8 @@ interface TalentListItem {
   geo_scope: string;
   approval_mode: string;
   photo_url?: string | null;
+  image_url?: string | null;
+  avatar_url?: string | null;
 }
 
 interface ClientRequestItem {
@@ -357,9 +359,9 @@ export default function ClientDashboardPage() {
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                        {t.photo_url ? (
+                        {t.image_url || t.avatar_url ? (
                           <img
-                            src={t.photo_url}
+                            src={t.image_url || t.avatar_url || ""}
                             alt={t.name}
                             className="w-full h-full object-cover"
                           />
