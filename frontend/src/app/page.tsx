@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const faceCards = [
@@ -42,6 +42,7 @@ export default function HomePage() {
   const router = useRouter();
   const [isForYouOpen, setIsForYouOpen] = useState(false);
   const [isSignUpOpen, setIsSignUpOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const dashboardPath =
     user?.role === "talent"
@@ -147,7 +148,30 @@ export default function HomePage() {
               </>
             )}
           </div>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 text-gray-700 hover:text-black"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 bg-white px-6 py-4 space-y-3">
+            <Link href="/how-it-works" className="block text-gray-700 hover:text-black py-2" onClick={() => setMobileMenuOpen(false)}>How it Works</Link>
+            <Link href="/talent/library" className="block text-gray-700 hover:text-black py-2" onClick={() => setMobileMenuOpen(false)}>Face Library</Link>
+            <Link href="/for-talent" className="block text-gray-700 hover:text-black py-2" onClick={() => setMobileMenuOpen(false)}>For Talents</Link>
+            <Link href="/for-agents" className="block text-gray-700 hover:text-black py-2" onClick={() => setMobileMenuOpen(false)}>For Agencies</Link>
+            <Link href="/for-brands" className="block text-gray-700 hover:text-black py-2" onClick={() => setMobileMenuOpen(false)}>For Brands</Link>
+            <div className="border-t border-gray-200 pt-3 flex gap-3">
+              <Link href="/login" className="flex-1 text-center py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+              <Link href="/signup" className="flex-1 text-center py-2 bg-black text-white rounded-md hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>Sign Up</Link>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero Section */}
@@ -155,7 +179,7 @@ export default function HomePage() {
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://images.unsplash.com/photo-3cf9c1ce494deab2bb58a2b3ab9182f26d26239c?w=1600"
+            src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1600&q=80"
             alt=""
             className="w-full h-full object-cover opacity-40"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

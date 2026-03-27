@@ -97,11 +97,39 @@ export default function AgentDashboardPage() {
       router.push("/login");
       return;
     }
-    if (user?.profile_id) {
-      loadData(user.profile_id);
+    if (user) {
+      findAndLoadProfile();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
+
+  const findAndLoadProfile = async () => {
+    try {
+      if (user?.profile_id) {
+        await loadData(user.profile_id);
+        return;
+      }
+      // Fallback: fetch agent profiles and find by user_id
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/talents`);
+      // Try to get agent profile directly using user_id
+      // The getAgent endpoint needs an agent_id, not user_id
+      // So we try sequential IDs (small dataset)
+      for (let id = 1; id <= 20; id++) {
+        try {
+          const agent = await getAgent(id);
+          if (agent && agent.user_id === user?.user_id) {
+            await loadData(id);
+            return;
+          }
+        } catch {
+          continue;
+        }
+      }
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+  };
 
   const loadData = async (profileId: number) => {
     try {
