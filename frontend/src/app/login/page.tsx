@@ -27,7 +27,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login({ email, password });
-      setUser(res);
+      setUser({ ...res, user_id: res.id, profile_id: null });
       if (res.role === "talent") router.push("/talent/dashboard");
       else if (res.role === "client" || res.role === "brand") router.push("/client/dashboard");
       else if (res.role === "agent") router.push("/agent/dashboard");
