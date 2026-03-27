@@ -32,8 +32,9 @@ export default function LoginPage() {
       else if (res.role === "client" || res.role === "brand") router.push("/client/dashboard");
       else if (res.role === "agent") router.push("/agent/dashboard");
       else router.push("/");
-    } catch {
-      setError("Invalid email or password");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login failed";
+      setError(msg);
     } finally {
       setLoading(false);
     }
