@@ -144,7 +144,14 @@ export default function DiscoverTalentPage() {
           )}
         </div>
 
-        <p className="text-sm text-gray-600 mb-6">Showing <span className="font-semibold text-black">{filtered.length}</span> talents</p>
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-sm text-gray-600">Showing <span className="font-semibold text-black">{filtered.length}</span> talents</p>
+          {(searchQuery || selectedGender !== "all" || selectedAgeRange !== "all" || selectedCategory !== "all" || selectedSkinColor !== "all" || selectedHairColor !== "all" || selectedUsage !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setSelectedGender("all"); setSelectedAgeRange("all"); setSelectedCategory("all"); setSelectedSkinColor("all"); setSelectedHairColor("all"); setSelectedUsage("all"); }} className="text-sm text-blue-600 hover:underline font-medium">
+              Clear all filters
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-4 gap-6 pb-20">
           {filtered.map((talent) => (

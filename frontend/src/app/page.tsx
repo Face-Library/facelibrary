@@ -288,8 +288,8 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-4 text-sm">
               <Link href="/talent/library" className="text-gray-500 hover:text-black transition-colors">Face Library</Link>
-              <Link href="#" className="text-gray-500 hover:text-black transition-colors">Privacy</Link>
-              <Link href="#" className="text-gray-500 hover:text-black transition-colors">Terms</Link>
+              <Link href="/privacy" className="text-gray-500 hover:text-black transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-gray-500 hover:text-black transition-colors">Terms</Link>
             </div>
           </div>
         </div>

@@ -58,7 +58,8 @@ interface TalentProfileData {
 interface LicenseRequestData {
   id: number;
   status: string;
-  brand_name: string;
+  brand_name?: string;
+  client_name?: string;
   use_case: string;
   content_type: string;
   license_type: string | null;
@@ -655,7 +656,7 @@ export default function TalentDashboardPage() {
                         >
                           <td className="py-3 pr-4">
                             <span className="font-medium text-gray-900">
-                              {r.brand_name}
+                              {r.client_name || r.brand_name || "Unknown"}
                             </span>
                           </td>
                           <td className="py-3 pr-4 text-gray-500 text-xs max-w-[160px] truncate">
@@ -703,7 +704,8 @@ export default function TalentDashboardPage() {
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {(r.status === "awaiting_approval" ||
-                                r.status === "pending") && (
+                                r.status === "pending" ||
+                                r.status === "under_review") && (
                                 <>
                                   <button
                                     onClick={() =>

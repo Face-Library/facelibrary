@@ -33,6 +33,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import {
   listTalents,
+  getClient,
   createLicenseRequest,
   getClientRequests,
   generateContract,
@@ -111,24 +112,38 @@ export default function ClientDashboardPage() {
   ]);
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "client")) {
+    if (!authLoading && (!user || (user.role !== "client" && user.role !== "brand"))) {
       router.push("/login");
       return;
     }
-    if (user?.profile_id) loadData();
+    if (user) findAndLoadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
-  const loadData = async () => {
+  const findAndLoadData = async () => {
     try {
-      const [t, r] = await Promise.all([
-        listTalents(),
-        user?.profile_id
-          ? getClientRequests(user.profile_id)
-          : Promise.resolve([]),
-      ]);
+      const t = await listTalents();
       setTalents(t);
-      setRequests(r);
+
+      // Find client profile ID
+      let profileId = user?.profile_id;
+      if (!profileId && user?.user_id) {
+        // Search through client profiles by trying sequential IDs
+        for (let id = 1; id <= 20; id++) {
+          try {
+            const client = await getClient(id);
+            if (client && client.user_id === user.user_id) {
+              profileId = id;
+              break;
+            }
+          } catch { continue; }
+        }
+      }
+
+      if (profileId) {
+        const r = await getClientRequests(profileId);
+        setRequests(r);
+      }
     } catch {
       // silent
     }
@@ -139,7 +154,7 @@ export default function ClientDashboardPage() {
     try {
       await generateContract(licenseId);
       setMessage("Contract generated successfully.");
-      loadData();
+      findAndLoadData();
     } catch {
       setMessage("Failed to generate contract.");
     }

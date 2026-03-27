@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, UserCheck, ShieldCheck, Sparkles, Settings2, FileCheck, BadgeDollarSign } from "lucide-react";
+import { ArrowRight, UserCheck, ShieldCheck, Sparkles, Settings2, FileCheck, BadgeDollarSign, ChevronDown, Menu, X } from "lucide-react";
 
 const steps = [
   { num: "01", icon: UserCheck, title: "Claim Your Profile", desc: "Sign up as talent, submit your details, and create your digital identity." },
@@ -13,10 +14,13 @@ const steps = [
 ];
 
 export default function HowItWorksPage() {
+  const [isForYouOpen, setIsForYouOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Nav */}
-      <nav className="border-b border-gray-800">
+      <nav className="border-b border-gray-800 sticky top-0 z-50 bg-black">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 border-2 border-white flex items-center justify-center">
@@ -24,13 +28,46 @@ export default function HowItWorksPage() {
             </div>
             <span className="font-semibold text-lg text-white">FACE LIBRARY</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-gray-400 hover:text-white transition-colors">Login</Link>
-            <Link href="/signup" className="bg-white text-black px-6 py-2 rounded-md hover:bg-gray-100 transition-colors font-medium text-sm">
-              Sign Up
-            </Link>
+          <div className="hidden md:flex items-center gap-8">
+            <span className="text-white font-semibold">How it Works</span>
+            <Link href="/talent/library" className="text-gray-400 hover:text-white transition-colors">Face Library</Link>
+            <div className="relative">
+              <button onClick={() => setIsForYouOpen(!isForYouOpen)} className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors">
+                For You <ChevronDown className={`w-4 h-4 transition-transform ${isForYouOpen ? "rotate-180" : ""}`} />
+              </button>
+              {isForYouOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsForYouOpen(false)} />
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white text-black border border-gray-200 rounded-lg shadow-lg z-20">
+                    <Link href="/for-talent" onClick={() => setIsForYouOpen(false)} className="block px-4 py-3 hover:bg-gray-50">For Talents</Link>
+                    <Link href="/for-agents" onClick={() => setIsForYouOpen(false)} className="block px-4 py-3 hover:bg-gray-50">For Agencies</Link>
+                    <Link href="/for-brands" onClick={() => setIsForYouOpen(false)} className="block px-4 py-3 hover:bg-gray-50">For Brands</Link>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
+          <div className="hidden md:flex items-center gap-4">
+            <Link href="/login" className="text-gray-400 hover:text-white transition-colors">Login</Link>
+            <Link href="/signup" className="bg-white text-black px-6 py-2 rounded-md hover:bg-gray-100 transition-colors font-medium text-sm">Sign Up</Link>
+          </div>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 text-gray-400 hover:text-white">
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-800 bg-black px-6 py-4 space-y-3">
+            <span className="block text-white font-medium py-2">How it Works</span>
+            <Link href="/talent/library" className="block text-gray-400 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Face Library</Link>
+            <Link href="/for-talent" className="block text-gray-400 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>For Talents</Link>
+            <Link href="/for-agents" className="block text-gray-400 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>For Agencies</Link>
+            <Link href="/for-brands" className="block text-gray-400 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>For Brands</Link>
+            <div className="border-t border-gray-800 pt-3 flex gap-3">
+              <Link href="/login" className="flex-1 text-center py-2 text-gray-400 border border-gray-700 rounded-md" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+              <Link href="/signup" className="flex-1 text-center py-2 bg-white text-black rounded-md" onClick={() => setMobileMenuOpen(false)}>Sign Up</Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero */}
@@ -94,8 +131,8 @@ export default function HowItWorksPage() {
           </div>
           <div className="flex items-center gap-4 text-xs">
             <Link href="/talent/library" className="text-gray-600 hover:text-white transition-colors">Face Library</Link>
-            <Link href="#" className="text-gray-600 hover:text-white transition-colors">Privacy</Link>
-            <Link href="#" className="text-gray-600 hover:text-white transition-colors">Terms</Link>
+            <Link href="/privacy" className="text-gray-600 hover:text-white transition-colors">Privacy</Link>
+            <Link href="/terms" className="text-gray-600 hover:text-white transition-colors">Terms</Link>
           </div>
         </div>
       </footer>
