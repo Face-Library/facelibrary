@@ -74,9 +74,9 @@ export default function LicenseDetailPage() {
       getLicense(id).then(setLicense),
       getAuditTrail(id).then(setAudit).catch(() => setAudit([])),
     ])
-      .catch((err) => {
-        const msg = err instanceof Error ? err.message : "Failed to load license";
-        setError(msg);
+      .catch(() => {
+        // Don't use raw API error — show the user-friendly fallback message instead
+        setError("");
       })
       .finally(() => setLoading(false));
   };
