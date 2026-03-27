@@ -1187,7 +1187,7 @@ def get_license_templates():
 @app.get("/api/health")
 def health():
     return {
-        "status": "healthy", "version": "1.2.0-mvp", "database": "supabase",
+        "status": "healthy", "version": "1.3.0-mvp", "database": "supabase",
         "features": {
             "jwt_auth": True, "ownership_verification": True,
             "contract_agent": True, "manual_review": True,

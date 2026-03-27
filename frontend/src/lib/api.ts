@@ -29,6 +29,16 @@ async function fetchAPI(path: string, options?: RequestInit) {
   }
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
+    if (res.status === 429) {
+      throw new Error("Too many requests. Please wait a moment and try again.");
+    }
+    if (res.status === 401) {
+      // Clear stale auth on 401
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("fl_user");
+      }
+      throw new Error("Session expired. Please log in again.");
+    }
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(error.detail || "API Error");
   }

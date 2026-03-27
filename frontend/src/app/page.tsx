@@ -179,7 +179,7 @@ export default function HomePage() {
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1600&q=80"
+            src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=1600&q=80"
             alt=""
             className="w-full h-full object-cover opacity-40"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -251,7 +251,7 @@ export default function HomePage() {
                       </div>
                     ))}
                   </div>
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity" />
                 </div>
               </Link>
             ))}
