@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, CheckCircle, MapPin, Shield } from "lucide-react";
+import { createLicenseRequest } from "@/lib/api";
 
 const talentDB: Record<string, { name: string; image: string; faceId: string; gender: string; age: number; location: string; categories: string[]; regions: string[]; usageAllowed: string[]; bio: string; portfolio: string[]; pricing: Record<string, string> }> = {
   "1": { name: "Sophia Anderson", image: "https://images.unsplash.com/flagged/photo-1573582677725-863b570e3c00?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600", faceId: "FL-238491", gender: "Female", age: 28, location: "London, UK", categories: ["Fashion", "Beauty", "Lifestyle"], regions: ["Global", "UK", "Europe"], usageAllowed: ["Social Media", "Website", "Print", "TV"], bio: "Professional digital face available for AI-generated campaigns. Experienced in fashion, beauty, and lifestyle content.", portfolio: ["https://images.unsplash.com/flagged/photo-1573582677725-863b570e3c00?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600", "https://images.unsplash.com/photo-1654028859265-0e8b12a67aae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600", "https://images.unsplash.com/photo-1633419798503-0b0c628f267c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600"], pricing: { social: "£500/month", website: "£800/month", print: "£1,200/campaign", tv: "£2,500/campaign" } },
@@ -15,8 +16,44 @@ export default function TalentProfilePage() {
   const params = useParams();
   const id = params.id as string;
   const [showLicenseModal, setShowLicenseModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [licenseForm, setLicenseForm] = useState({
+    campaignName: "",
+    usageType: "",
+    duration: "",
+    region: "",
+    details: "",
+  });
 
   const talent = talentDB[id] || talentDB["1"];
+
+  // Map the static talent ID to a real backend talent_id
+  // The backend has: 1=Olga Bonny, 2=Emma Clarke, 3=Marcus Chen
+  const backendTalentId = parseInt(id) <= 3 ? parseInt(id) : 1;
+
+  const handleLicenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await createLicenseRequest({
+        talent_id: backendTalentId,
+        license_type: "standard",
+        use_case: `${licenseForm.campaignName} — ${licenseForm.usageType}. ${licenseForm.details}`,
+        desired_duration_days: parseInt(licenseForm.duration) * 30 || 90,
+        desired_regions: licenseForm.region,
+        content_type: licenseForm.usageType === "tv" ? "video" : "image",
+        proposed_price: null,
+      });
+      setShowLicenseModal(false);
+      router.push("/client/dashboard");
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -135,15 +172,15 @@ export default function TalentProfilePage() {
                 <p className="text-sm text-gray-600">Face ID: {talent.faceId}</p>
               </div>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); setShowLicenseModal(false); router.push("/client/dashboard"); }}>
+            <form onSubmit={handleLicenseSubmit}>
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Campaign Name</label>
-                  <input type="text" placeholder="e.g., Summer Beauty Campaign 2026" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black" />
+                  <input type="text" placeholder="e.g., Summer Beauty Campaign 2026" required value={licenseForm.campaignName} onChange={(e) => setLicenseForm({ ...licenseForm, campaignName: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Usage Type</label>
-                  <select required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                  <select required value={licenseForm.usageType} onChange={(e) => setLicenseForm({ ...licenseForm, usageType: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                     <option value="">Select usage type</option>
                     <option value="social">Social Media</option>
                     <option value="website">Website</option>
@@ -154,7 +191,7 @@ export default function TalentProfilePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Duration</label>
-                    <select required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                    <select required value={licenseForm.duration} onChange={(e) => setLicenseForm({ ...licenseForm, duration: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                       <option value="">Select</option>
                       <option value="1">1 month</option>
                       <option value="3">3 months</option>
@@ -164,22 +201,25 @@ export default function TalentProfilePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Region</label>
-                    <select required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                    <select required value={licenseForm.region} onChange={(e) => setLicenseForm({ ...licenseForm, region: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
                       <option value="">Select</option>
-                      <option value="global">Global</option>
-                      <option value="uk">UK</option>
-                      <option value="europe">Europe</option>
+                      <option value="Global">Global</option>
+                      <option value="UK">UK</option>
+                      <option value="Europe">Europe</option>
                     </select>
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Additional Details</label>
-                  <textarea placeholder="Describe your campaign..." rows={3} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black resize-none" />
+                  <textarea placeholder="Describe your campaign..." rows={3} value={licenseForm.details} onChange={(e) => setLicenseForm({ ...licenseForm, details: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black resize-none" />
                 </div>
+                {submitError && <p className="text-sm text-red-600">{submitError}</p>}
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowLicenseModal(false)} className="flex-1 border border-gray-300 text-gray-700 py-3 rounded-lg hover:border-black hover:text-black transition-colors font-medium">Cancel</button>
-                <button type="submit" className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium">Submit License Request</button>
+                <button type="submit" disabled={submitting} className="flex-1 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium disabled:opacity-50">
+                  {submitting ? "Submitting..." : "Submit License Request"}
+                </button>
               </div>
             </form>
           </div>

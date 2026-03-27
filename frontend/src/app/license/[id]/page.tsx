@@ -65,17 +65,29 @@ export default function LicenseDetailPage() {
   const [improveFeedback, setImproveFeedback] = useState("");
   const [improving, setImproving] = useState(false);
 
+  const [error, setError] = useState("");
+
   const loadData = () => {
     if (!id) return;
+    setError("");
     Promise.all([
       getLicense(id).then(setLicense),
-      getAuditTrail(id).then(setAudit),
+      getAuditTrail(id).then(setAudit).catch(() => setAudit([])),
     ])
-      .catch(console.error)
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load license";
+        setError(msg);
+      })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadData(); }, [id]);
+  // Wait for auth to be ready before loading
+  const { isLoading: authLoading } = useAuth();
+  useEffect(() => {
+    if (!authLoading && user) loadData();
+    else if (!authLoading && !user) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, authLoading, user]);
 
   const handleApproval = async (approved: boolean) => {
     try {
@@ -142,8 +154,13 @@ export default function LicenseDetailPage() {
 
   if (!license) {
     return (
-      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
-        <p className="font-body text-[#6B6B73]">License not found.</p>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">{error || (user ? "License not found or you don't have access." : "Please log in to view this license.")}</p>
+          <Link href={user ? backPath : "/login"} className="text-black underline hover:no-underline">
+            {user ? "Back to Dashboard" : "Log In"}
+          </Link>
+        </div>
       </div>
     );
   }
