@@ -344,7 +344,7 @@ export default function ClientDashboardPage() {
                   </p>
                 </div>
                 <Link
-                  href="/talent/library"
+                  href="/discover-talent"
                   className="text-xs text-gray-500 hover:text-black transition-colors"
                 >
                   View all &rarr;
