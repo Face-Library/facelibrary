@@ -37,6 +37,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { FloatingAIChat } from "@/components/FloatingAIChat";
 import { getAgent, getAgentRequests, approveLicense } from "@/lib/api";
 
 /* ---------- Types ---------- */
@@ -91,6 +92,30 @@ export default function AgentDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [chatMessage, setChatMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([
+    { role: "assistant", text: "Hi! I can help you manage your talent roster, review contracts, and analyze campaign performance. What would you like to do?" },
+  ]);
+
+  const handleChatSubmit = () => {
+    const text = chatMessage.trim();
+    if (!text) return;
+    setChatMessages((prev) => [...prev, { role: "user", text }]);
+    setChatMessage("");
+    setTimeout(() => {
+      const lower = text.toLowerCase();
+      let reply = "I can help you with contracts, deals, talent analytics, and IP rights. What would you like to do?";
+      if (lower.includes("contract")) {
+        reply = "To generate a contract I need:\n\n• Which talent?\n• Which brand/campaign?\n• License duration and territory\n• Usage rights (social, print, TV, AI)\n\nWant me to create a draft?";
+      } else if (lower.includes("deal") || lower.includes("review")) {
+        reply = "Pending deals for your roster:\n\n⚠️ 3 new requests this week\n✓ 2 contracts awaiting signature\n🔄 1 renewal coming up";
+      } else if (lower.includes("talent") || lower.includes("analy") || lower.includes("performance")) {
+        reply = "Roster performance:\n\n📈 Top earner: Olga Bonny (£12,480 YTD)\n📊 Most requested category: Fashion\n🏆 Fastest growing: Marcus Chen";
+      } else if (lower.includes("ip") || lower.includes("rights")) {
+        reply = "IP rights management:\n\n• Active licenses: 6\n• Exclusive deals: 1\n• Territory conflicts: 0\n• Expiring within 30 days: 2";
+      }
+      setChatMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+    }, 700);
+  };
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "agent")) {
@@ -322,10 +347,16 @@ export default function AgentDashboardPage() {
                 Quick Actions
               </h3>
               <div className="space-y-2">
-                <button className="w-full flex items-center gap-2 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors">
+                <button
+                  onClick={() => router.push("/add-new-talent")}
+                  className="w-full flex items-center gap-2 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                >
                   <Plus className="w-3.5 h-3.5" /> Add Talent
                 </button>
-                <button className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => router.push("/contract-templates")}
+                  className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
                   <FileText className="w-3.5 h-3.5" /> Generate Contract
                 </button>
                 <button className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
@@ -479,7 +510,10 @@ export default function AgentDashboardPage() {
                 <h3 className="text-sm font-semibold text-gray-900">
                   Talent Management
                 </h3>
-                <button className="bg-black text-white py-1.5 px-3 rounded-lg text-xs hover:bg-gray-800 transition-colors">
+                <button
+                  onClick={() => router.push("/add-new-talent")}
+                  className="bg-black text-white py-1.5 px-3 rounded-lg text-xs hover:bg-gray-800 transition-colors"
+                >
                   + Add Talent
                 </button>
               </div>
@@ -545,24 +579,49 @@ export default function AgentDashboardPage() {
               <div className="bg-black text-white px-4 py-3">
                 <h3 className="text-sm font-medium">AI Agent Assistant</h3>
               </div>
-              <div className="p-4 h-48 overflow-y-auto">
-                <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 mb-3">
-                  Hi! I can help you manage your talent roster, review
-                  contracts, and analyze campaign performance. What would you
-                  like to do?
-                </div>
+              <div className="p-4 h-48 overflow-y-auto space-y-2">
+                {chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 text-xs whitespace-pre-line ${
+                      msg.role === "assistant"
+                        ? "bg-gray-50 text-gray-700"
+                        : "bg-black text-white ml-4"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                ))}
               </div>
-              <div className="border-t border-gray-200 p-3 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="Ask me anything..."
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-                <button className="bg-black text-white p-2 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
-                  <Send className="w-3 h-3" />
-                </button>
+              <div className="border-t border-gray-200 p-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleChatSubmit(); } }}
+                    placeholder="Ask me anything..."
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleChatSubmit}
+                    disabled={!chatMessage.trim()}
+                    className="bg-black text-white p-2 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0 disabled:opacity-50"
+                  >
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["Review deals", "Generate contract", "Analyze talent"].map((action) => (
+                    <button
+                      key={action}
+                      onClick={() => setChatMessage(action)}
+                      className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -638,6 +697,7 @@ export default function AgentDashboardPage() {
           </div>
         </div>
       </div>
+      <FloatingAIChat variant="agent" />
     </div>
   );
 }

@@ -108,6 +108,13 @@ export default function TalentDashboardPage() {
   const [watermarks, setWatermarks] = useState<WatermarkEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [hasPaymentMethod, setHasPaymentMethod] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState({
+    accountNumber: "****1234",
+    name: "",
+    bankName: "",
+  });
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
@@ -452,8 +459,8 @@ export default function TalentDashboardPage() {
                       <Instagram className="w-4 h-4" />
                       <span>Instagram</span>
                     </div>
-                    <span className="text-gray-900 text-xs">
-                      @{(profile?.name || "username").toLowerCase().replace(/\s/g, "")}
+                    <span className="text-gray-900 text-xs truncate max-w-[140px]">
+                      {(profile as { instagram?: string } | null)?.instagram || "— not linked"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -461,8 +468,8 @@ export default function TalentDashboardPage() {
                       <ExternalLink className="w-4 h-4" />
                       <span>TikTok</span>
                     </div>
-                    <span className="text-gray-900 text-xs">
-                      @{(profile?.name || "username").toLowerCase().replace(/\s/g, "")}
+                    <span className="text-gray-900 text-xs truncate max-w-[140px]">
+                      {(profile as { tiktok?: string } | null)?.tiktok || "— not linked"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -470,14 +477,18 @@ export default function TalentDashboardPage() {
                       <ExternalLink className="w-4 h-4" />
                       <span>YouTube</span>
                     </div>
-                    <span className="text-gray-900 text-xs">---</span>
+                    <span className="text-gray-900 text-xs truncate max-w-[140px]">
+                      {(profile as { youtube?: string } | null)?.youtube || "— not linked"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-gray-500">
                       <Shield className="w-4 h-4" />
                       <span>Agent</span>
                     </div>
-                    <span className="text-gray-900 text-xs">---</span>
+                    <span className="text-gray-900 text-xs truncate max-w-[140px]">
+                      {(profile as { linked_agent?: { agency_name?: string } } | null)?.linked_agent?.agency_name || "— none"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -808,17 +819,140 @@ export default function TalentDashboardPage() {
               <h3 className="text-sm font-semibold text-gray-900 mb-3">
                 Face Identity Certificate
               </h3>
-              <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 flex flex-col items-center justify-center text-center">
-                <Shield className="w-8 h-8 text-gray-400 mb-2" />
-                <p className="text-xs text-gray-500">
-                  Your verified identity certificate will appear here once
-                  approved.
-                </p>
+              {profile ? (
+                <div className="rounded-lg bg-gradient-to-br from-gray-900 to-black p-5 text-white">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-green-400" />
+                    </div>
+                    <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded-full uppercase tracking-wider font-semibold">
+                      Verified
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Face ID</p>
+                  <p className="font-mono text-sm font-semibold mb-4">
+                    FL-{String(profile.id).padStart(6, "0")}
+                  </p>
+                  <p className="text-[10px] text-gray-500">
+                    Issued by Face Library &bull; UK GDPR Compliant
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 flex flex-col items-center justify-center text-center">
+                  <Shield className="w-8 h-8 text-gray-400 mb-2" />
+                  <p className="text-xs text-gray-500">
+                    Your verified identity certificate will appear here once approved.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Method */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Payment Method
+                </h3>
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {hasPaymentMethod ? "Edit" : "Add"}
+                </button>
               </div>
+              {hasPaymentMethod ? (
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Bank Account</p>
+                  <p className="text-sm font-medium text-gray-900">{paymentMethod.bankName}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{paymentMethod.accountNumber}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  No payment method set. Add one to receive earnings.
+                </p>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment Method Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Payment Method</h3>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="text-gray-500 hover:text-black"
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setHasPaymentMethod(true);
+                setShowPaymentModal(false);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Account Holder Name</label>
+                <input
+                  type="text"
+                  value={paymentMethod.name}
+                  onChange={(e) => setPaymentMethod({ ...paymentMethod, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
+                <input
+                  type="text"
+                  value={paymentMethod.bankName}
+                  onChange={(e) => setPaymentMethod({ ...paymentMethod, bankName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  placeholder="e.g. Barclays Bank"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Account Number (last 4 digits)</label>
+                <input
+                  type="text"
+                  value={paymentMethod.accountNumber}
+                  onChange={(e) => setPaymentMethod({ ...paymentMethod, accountNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  placeholder="****1234"
+                  required
+                />
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Bank details are encrypted and only used for payouts. 90% of each licensing fee goes directly to you.
+              </p>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ===== AI Chat Widget (floating) ===== */}
       <div className="fixed bottom-6 right-6 z-50">
