@@ -45,6 +45,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 
 ALLOWED_ORIGINS = [
+    "https://facelibrary.vercel.app",
     "https://face-library.vercel.app",
     "https://face-library-aswingiridhars-projects.vercel.app",
     "https://face-library-git-main-aswingiridhars-projects.vercel.app",

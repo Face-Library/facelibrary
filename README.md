@@ -8,7 +8,7 @@ Face Library is a licensing platform for human identity in generative AI. Creato
 
 | Service | URL |
 |---------|-----|
-| Frontend | https://face-library.vercel.app |
+| Frontend | https://facelibrary.vercel.app |
 | Backend API | https://face-library.onrender.com |
 | API Docs | https://face-library.onrender.com/docs |
 
