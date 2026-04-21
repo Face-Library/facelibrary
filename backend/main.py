@@ -48,9 +48,19 @@ from llm_client import LLMError
 
 contract_agent = ContractAgent()
 
-JWT_SECRET = os.getenv("SECRET_KEY", "face-library-mvp-2026")
+_DEFAULT_JWT_SECRET = "face-library-mvp-2026"
+JWT_SECRET = os.getenv("SECRET_KEY", _DEFAULT_JWT_SECRET)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
+
+# Fail loudly at startup if SECRET_KEY is unset or still on the public default.
+# Tokens signed with a known-default secret can be forged by anyone who reads
+# the repo, so treating this as a best-effort fallback in production is unsafe.
+if JWT_SECRET == _DEFAULT_JWT_SECRET and os.getenv("ENV", "dev") not in {"dev", "development", "local", "test"}:
+    raise RuntimeError(
+        "SECRET_KEY is unset or set to the public default. Refusing to start "
+        "in a non-dev environment. Set SECRET_KEY in the Render environment."
+    )
 
 ALLOWED_ORIGINS = [
     "https://facelibrary.vercel.app",
@@ -520,16 +530,14 @@ async def upload_talent_image(talent_id: int, file: UploadFile = File(...), curr
 
     try:
         db().storage.from_("talent-images").upload(filename, contents, {"content-type": file.content_type})
-        image_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/talent-images/{filename}"
-    except Exception:
-        # Fallback to local storage
-        upload_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "talent")
-        os.makedirs(upload_dir, exist_ok=True)
-        filepath = os.path.join(upload_dir, filename)
-        with open(filepath, "wb") as f:
-            f.write(contents)
-        image_url = f"/uploads/talent/{filename}"
+    except Exception as e:
+        # Previously this silently wrote to a local /uploads dir that doesn't
+        # exist on Render's ephemeral filesystem, handing the user a broken
+        # image_url. Better to surface the real storage error.
+        logger.error("talent image upload to Supabase storage failed: %s", e)
+        raise HTTPException(502, "Image storage is temporarily unavailable. Please try again.")
 
+    image_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/talent-images/{filename}"
     db().table("talent_profiles").update({"image_url": image_url}).eq("id", talent_id).execute()
     return {"image_url": image_url, "filename": filename}
 
@@ -920,14 +928,31 @@ def generate_contract(license_id: int, request: Request, current_user: dict = De
     if not contract_text:
         raise HTTPException(502, "Contract generator returned an empty response. Please try again.")
 
-    db().table("contracts").insert({
+    # Two-step write: insert contract, then flip license flags. Supabase REST
+    # has no cross-table transaction, so if the second step fails we roll back
+    # the contract row to avoid a half-committed state where a contract exists
+    # but the license still says contract_generated=False.
+    inserted = db().table("contracts").insert({
         "license_id": license_id, "license_type": lic.get("license_type"),
         "contract_text": contract_text,
     }).execute()
+    contract_id = inserted.data[0]["id"] if inserted.data else None
 
-    db().table("license_requests").update({
-        "contract_generated": True, "status": "under_review",
-    }).eq("id", license_id).execute()
+    try:
+        db().table("license_requests").update({
+            "contract_generated": True, "status": "under_review",
+        }).eq("id", license_id).execute()
+    except Exception as e:
+        if contract_id is not None:
+            try:
+                db().table("contracts").delete().eq("id", contract_id).execute()
+            except Exception as rollback_err:
+                logger.error(
+                    "contract rollback failed for license_id=%s contract_id=%s: %s",
+                    license_id, contract_id, rollback_err,
+                )
+        logger.error("license_requests update failed after contract insert: %s", e)
+        raise HTTPException(500, "Failed to finalize contract state. The operation was rolled back; please retry.")
 
     _log_audit(license_id, "contract_agent", "contract_generated",
                f"IP licensing agreement generated ({result['model']})",
@@ -1257,14 +1282,48 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         raise HTTPException(400, f"Webhook error: {str(e)}")
 
-    if event.get("type") == "checkout.session.completed":
-        session = event["data"]["object"]
-        license_id = session.get("metadata", {}).get("license_id")
-        if license_id:
-            db().table("license_requests").update({
-                "payment_status": "paid", "status": "active",
-            }).eq("id", int(license_id)).execute()
-            _log_audit(int(license_id), "stripe", "payment_completed", "Payment received")
+    event_type = event.get("type")
+    obj = event.get("data", {}).get("object", {})
+    license_id_raw = obj.get("metadata", {}).get("license_id")
+    license_id = int(license_id_raw) if license_id_raw else None
+
+    # 1. Successful checkout → mark license paid and activate.
+    if event_type == "checkout.session.completed" and license_id:
+        db().table("license_requests").update({
+            "payment_status": "paid", "status": "active",
+        }).eq("id", license_id).execute()
+        _log_audit(license_id, "stripe", "payment_completed", "Payment received")
+
+    # 2. Charge refunded (partial or full) → revert to unpaid + on-hold so
+    #    talent/client workflows don't treat the license as active revenue.
+    elif event_type == "charge.refunded" and license_id:
+        refunded_amount = (obj.get("amount_refunded") or 0) / 100.0
+        db().table("license_requests").update({
+            "payment_status": "refunded", "status": "on_hold",
+        }).eq("id", license_id).execute()
+        _log_audit(license_id, "stripe", "payment_refunded",
+                   f"Refund processed: GBP {refunded_amount:.2f}")
+
+    # 3. Charge disputed (chargeback initiated) → freeze the license.
+    elif event_type == "charge.dispute.created" and license_id:
+        reason = obj.get("reason", "unspecified")
+        db().table("license_requests").update({
+            "payment_status": "disputed", "status": "on_hold",
+        }).eq("id", license_id).execute()
+        _log_audit(license_id, "stripe", "payment_disputed",
+                   f"Chargeback filed (reason: {reason})")
+
+    # 4. Payment failed (card declined, 3DS failed, etc.) → flip to unpaid.
+    elif event_type in {"checkout.session.async_payment_failed", "invoice.payment_failed"} and license_id:
+        db().table("license_requests").update({
+            "payment_status": "failed",
+        }).eq("id", license_id).execute()
+        _log_audit(license_id, "stripe", "payment_failed", f"Payment failed ({event_type})")
+
+    else:
+        # Unhandled event type — log for visibility but don't error.
+        logger.info("Unhandled Stripe webhook event: %s", event_type)
+
     return {"status": "ok"}
 
 
@@ -1275,6 +1334,282 @@ def get_revenue(current_user: dict = Depends(get_current_user)):
     return {
         "total_revenue": total, "platform_fees": total * 0.10,
         "talent_payouts": total * 0.90, "paid_licenses": len(res.data),
+    }
+
+
+# ============================================================================
+# EMAIL VERIFICATION
+# ============================================================================
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(..., max_length=255)
+
+@app.post("/api/auth/resend-verification")
+@limiter.limit("3/minute")
+def resend_verification(req: ResendVerificationRequest, request: Request):
+    """Ask Supabase Auth to resend the email-verification link. Requires
+    SMTP/email templates to be configured in the Supabase project; if they
+    are not, this will silently no-op on the provider side."""
+    try:
+        supabase_admin.auth.resend({"type": "signup", "email": req.email.lower().strip()})
+    except Exception as e:
+        logger.warning("resend verification for %s failed: %s", req.email, e)
+        raise HTTPException(502, "Email provider unavailable. Please try again shortly.")
+    return {"status": "sent"}
+
+
+@app.get("/api/auth/verification-status")
+def verification_status(current_user: dict = Depends(get_current_user)):
+    """Return whether the current user's email is verified. The frontend uses
+    this to decide whether to show the verify-email page or the dashboard."""
+    res = db().table("users").select("email_confirmed_at").eq("id", current_user["user_id"]).execute()
+    if not res.data:
+        raise HTTPException(404, "User not found")
+    return {"verified": bool(res.data[0].get("email_confirmed_at"))}
+
+
+# ============================================================================
+# PAYOUTS (talent earnings + withdrawal requests)
+#
+# MVP scope: the full workflow (talent requests payout → platform admin
+# approves → Stripe Connect transfer) is scaffolded but the money-movement
+# step is intentionally left as a stub. `stripe_transfer_id` stays NULL
+# until Stripe Connect is wired; operators can manually mark a row as
+# `paid` for now. This unblocks the UX without taking on half-implemented
+# payment rails.
+# ============================================================================
+
+class PayoutRequest(BaseModel):
+    amount: float = Field(..., gt=0, le=1_000_000)
+    bank_account_ref: str | None = Field(None, max_length=255)
+    notes: str | None = Field(None, max_length=1000)
+
+
+def _talent_earnings_summary(talent_profile_id: int) -> dict:
+    """Compute paid-to-date total, pending payouts, and available balance."""
+    paid = db().table("license_requests").select("proposed_price").eq(
+        "talent_id", talent_profile_id
+    ).eq("payment_status", "paid").execute()
+    gross = sum((r.get("proposed_price") or 0) for r in (paid.data or []))
+    # Platform takes 10%, talent keeps 90%
+    earned = round(gross * 0.90, 2)
+
+    payouts = db().table("payouts").select("amount,status").eq("talent_id", talent_profile_id).execute()
+    requested = sum(float(p["amount"]) for p in (payouts.data or []) if p["status"] in {"requested", "processing"})
+    paid_out = sum(float(p["amount"]) for p in (payouts.data or []) if p["status"] == "paid")
+
+    return {
+        "gross_revenue": round(gross, 2),
+        "total_earned": earned,
+        "paid_out": round(paid_out, 2),
+        "pending_payout": round(requested, 2),
+        "available_balance": round(earned - paid_out - requested, 2),
+    }
+
+
+@app.get("/api/payouts/earnings")
+def get_my_earnings(current_user: dict = Depends(get_current_user)):
+    """Summary of earnings and payout state for the current talent."""
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    if not talent_pid:
+        raise HTTPException(403, "Only talent accounts can view earnings")
+    return _talent_earnings_summary(talent_pid)
+
+
+@app.get("/api/payouts/list")
+def list_my_payouts(current_user: dict = Depends(get_current_user)):
+    """Payout history for the current talent."""
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    if not talent_pid:
+        raise HTTPException(403, "Only talent accounts can view payouts")
+    res = db().table("payouts").select("*").eq("talent_id", talent_pid).order("created_at", desc=True).execute()
+    return res.data or []
+
+
+@app.post("/api/payouts/request")
+@limiter.limit("5/minute")
+def request_payout(req: PayoutRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    """Talent requests a payout for an amount up to their available balance.
+    Actual money movement is handled manually by operators until Stripe
+    Connect is integrated — this endpoint only records the intent."""
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    if not talent_pid:
+        raise HTTPException(403, "Only talent accounts can request payouts")
+
+    summary = _talent_earnings_summary(talent_pid)
+    if req.amount > summary["available_balance"]:
+        raise HTTPException(
+            400,
+            f"Amount exceeds available balance (requested GBP {req.amount:.2f}, "
+            f"available GBP {summary['available_balance']:.2f})",
+        )
+
+    res = db().table("payouts").insert({
+        "talent_id": talent_pid, "amount": req.amount,
+        "currency": "GBP", "status": "requested",
+        "bank_account_ref": req.bank_account_ref, "notes": req.notes,
+    }).execute()
+    payout = res.data[0]
+
+    _log_audit(None, "payouts", "payout_requested",
+               f"Talent {talent_pid} requested GBP {req.amount:.2f} payout (id={payout['id']})")
+    return payout
+
+
+# ============================================================================
+# AVATAR GENERATION
+#
+# MVP scope: upload pipeline + job tracking are real. The actual image
+# synthesis model (turning N face photos + body photos + identity video
+# into a usable digital likeness) is a pluggable hook. When
+# AVATAR_MODEL_PROVIDER is unset (current state), jobs auto-complete with
+# a placeholder output_avatar_url after a short delay so the frontend flow
+# is exercisable end-to-end. Wire a real provider by checking for
+# AVATAR_MODEL_PROVIDER and calling it from _maybe_complete_avatar_job().
+# ============================================================================
+
+AVATAR_JOB_SIMULATED_SECONDS = 8  # how long the placeholder "generation" takes
+
+class AvatarSubmitRequest(BaseModel):
+    face_photo_count: int = Field(..., ge=0, le=50)
+    body_photo_count: int = Field(..., ge=0, le=50)
+    identity_video_ref: str | None = Field(None, max_length=500)
+
+
+def _maybe_complete_avatar_job(job: dict) -> dict:
+    """If a job has been 'processing' for >= AVATAR_JOB_SIMULATED_SECONDS,
+    mark it completed with a placeholder output URL. Replace this function
+    with a real ML model call when an AVATAR_MODEL_PROVIDER is available."""
+    if job.get("status") != "processing":
+        return job
+    created = job.get("created_at")
+    if not created:
+        return job
+    try:
+        created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+    except Exception:
+        return job
+    elapsed = (datetime.utcnow().replace(tzinfo=created_dt.tzinfo) - created_dt).total_seconds()
+    if elapsed < AVATAR_JOB_SIMULATED_SECONDS:
+        return job
+
+    provider = os.getenv("AVATAR_MODEL_PROVIDER", "").strip()
+    if provider:
+        # Real provider hook would go here. For now we fall through to the
+        # placeholder so the pipeline is testable.
+        logger.info("AVATAR_MODEL_PROVIDER=%s configured but not yet integrated", provider)
+
+    # Use the talent's existing image as the placeholder output.
+    talent_res = db().table("talent_profiles").select("image_url").eq("id", job["talent_id"]).execute()
+    placeholder = talent_res.data[0].get("image_url") if talent_res.data else None
+
+    updated = db().table("avatar_jobs").update({
+        "status": "completed",
+        "output_avatar_url": placeholder,
+        "model_used": provider or "placeholder-v1",
+        "completed_at": datetime.utcnow().isoformat(),
+    }).eq("id", job["id"]).execute()
+    return updated.data[0] if updated.data else {**job, "status": "completed", "output_avatar_url": placeholder}
+
+
+@app.post("/api/talent/avatar/submit")
+@limiter.limit("3/minute")
+def submit_avatar_job(req: AvatarSubmitRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    """Start an avatar generation job for the calling talent."""
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    if not talent_pid:
+        raise HTTPException(403, "Only talent accounts can submit avatar jobs")
+
+    if req.face_photo_count < 5 or req.body_photo_count < 4:
+        raise HTTPException(
+            400,
+            "Need at least 5 face photos and 4 body photos to generate an avatar.",
+        )
+
+    res = db().table("avatar_jobs").insert({
+        "talent_id": talent_pid, "status": "processing",
+        "face_photo_count": req.face_photo_count,
+        "body_photo_count": req.body_photo_count,
+        "identity_video_ref": req.identity_video_ref,
+    }).execute()
+    job = res.data[0]
+    _log_audit(None, "avatar_pipeline", "avatar_job_started",
+               f"Talent {talent_pid} submitted avatar job id={job['id']} "
+               f"(faces={req.face_photo_count}, bodies={req.body_photo_count})")
+    return job
+
+
+@app.get("/api/talent/avatar/{job_id}")
+def get_avatar_job(job_id: int, current_user: dict = Depends(get_current_user)):
+    """Poll avatar job status. Completes after AVATAR_JOB_SIMULATED_SECONDS."""
+    res = db().table("avatar_jobs").select("*").eq("id", job_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Avatar job not found")
+    job = res.data[0]
+
+    # Authz: only the talent the job belongs to may view it.
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    if not talent_pid or talent_pid != job["talent_id"]:
+        raise HTTPException(403, "Not your avatar job")
+
+    return _maybe_complete_avatar_job(job)
+
+
+# ============================================================================
+# AI CHAT (dashboard assistants + floating chat)
+# ============================================================================
+
+from llm_client import chat as llm_chat
+
+_CHAT_SYSTEM_PROMPTS = {
+    "client": """You are the AI Campaign Assistant for Face Library, helping brand/agency users.
+You help them: find and filter verified talent, understand licensing options, draft offer terms,
+interpret contract clauses, and plan campaign budgets. Be concise (<=5 short paragraphs), friendly,
+and reference UK licensing conventions (GBP pricing, UK/EU/global territories). If a user asks for
+something you can't do (sending emails, making payments, creating accounts), say so and suggest
+the right page of the app to use instead.""",
+
+    "agent": """You are the AI Agency Assistant for Face Library, helping talent agencies.
+You help them: review licensing deals, analyze which talent in their roster best matches a given
+brief, generate/revise contract language, and explain UK IP and moral-rights law in plain English.
+Be concise (<=5 short paragraphs), professional, and protective of talent interests. If a user
+asks for something you can't do (sending emails, making payments, signing on behalf of talent),
+say so.""",
+
+    "talent": """You are the AI Talent Assistant for Face Library, helping individual talent.
+You help them: understand incoming license requests, decide whether terms are fair, explain what
+each contract clause means in plain English, and manage their availability/permissions. Be concise
+(<=5 short paragraphs), encouraging, and always protect the talent's interests (flag anything that
+looks underpriced, overreaching on AI training, or lacks proper territory limits). Never advise
+signing without reading.""",
+}
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., min_length=1, max_length=4000)
+
+class ChatRequest(BaseModel):
+    variant: str = Field(..., pattern="^(client|agent|talent)$")
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=50)
+
+@app.post("/api/chat")
+@limiter.limit("30/minute")
+def chat_endpoint(req: ChatRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    """Dashboard AI assistants + floating chat. Routes to the same LLM
+    (Kimi K2 Thinking via FLock) used for contract generation."""
+    system = _CHAT_SYSTEM_PROMPTS[req.variant]
+    history = [{"role": "system", "content": system}]
+    history.extend({"role": m.role, "content": m.content} for m in req.messages)
+
+    try:
+        result = llm_chat(history, temperature=0.6, max_tokens=800)
+    except LLMError as e:
+        raise HTTPException(502, f"AI assistant is temporarily unavailable. ({e})")
+
+    return {
+        "reply": result["content"],
+        "model": result["model"],
+        "tokens_used": result["tokens_used"],
     }
 
 
