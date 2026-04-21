@@ -27,9 +27,16 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
+import logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("facelibrary")
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
@@ -231,8 +238,30 @@ def _log_audit(license_id: int | None, agent_name: str, action: str, details: st
             "action": action, "details": details[:1000],
             "model_used": model_used, "tokens_used": tokens_used,
         }).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        # Audit failures should never break a successful write, but they must
+        # be visible: silent swallow means we lose the trail with no warning.
+        logger.warning(
+            "audit log insert failed for license_id=%s action=%s: %s",
+            license_id, action, e,
+        )
+
+
+def _verify_agent_profile_id(user_id: int) -> int | None:
+    """Return the agent profile id owned by user_id, or None."""
+    return _get_user_profile_id(user_id, "agent")
+
+
+def _verify_agent_link_access(user_id: int, link_id: int) -> bool:
+    """A talent-agent link is accessible to the talent on it, the agent on it,
+    or anyone with no-op read access (currently nobody)."""
+    link_res = db().table("talent_agent_links").select("talent_id,agent_id").eq("id", link_id).execute()
+    if not link_res.data:
+        return False
+    link = link_res.data[0]
+    talent_pid = _get_user_profile_id(user_id, "talent")
+    agent_pid = _get_user_profile_id(user_id, "agent")
+    return (talent_pid and link["talent_id"] == talent_pid) or (agent_pid and link["agent_id"] == agent_pid)
 
 
 def _get_user_profile_id(user_id: int, role: str) -> int | None:
@@ -789,12 +818,18 @@ def link_talent_agent(req: TalentAgentLinkRequest, current_user: dict = Depends(
 
 @app.delete("/api/talent-agent/link/{link_id}")
 def unlink_talent_agent(link_id: int, current_user: dict = Depends(get_current_user)):
+    if not _verify_agent_link_access(current_user["user_id"], link_id):
+        raise HTTPException(403, "Not authorized to unlink this talent-agent relationship")
     db().table("talent_agent_links").delete().eq("id", link_id).execute()
     return {"status": "unlinked"}
 
 
 @app.get("/api/talent-agent/links/{agent_id}")
 def get_agent_links(agent_id: int, current_user: dict = Depends(get_current_user)):
+    # Only the agent themselves can list their roster
+    caller_agent_pid = _verify_agent_profile_id(current_user["user_id"])
+    if caller_agent_pid != agent_id:
+        raise HTTPException(403, "You can only view your own talent roster")
     res = db().table("talent_agent_links").select("*").eq("agent_id", agent_id).execute()
     return [{"id": l["id"], "talent_id": l["talent_id"], "agent_id": l["agent_id"],
              "approval_type": l.get("approval_type")} for l in res.data]
@@ -839,7 +874,8 @@ def create_license_request(req: LicenseRequestCreate, current_user: dict = Depen
 
 
 @app.post("/api/licensing/{license_id}/generate-contract")
-def generate_contract(license_id: int, current_user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+def generate_contract(license_id: int, request: Request, current_user: dict = Depends(get_current_user)):
     lic_res = db().table("license_requests").select("*").eq("id", license_id).execute()
     if not lic_res.data:
         raise HTTPException(404, "License not found")
@@ -901,7 +937,8 @@ def generate_contract(license_id: int, current_user: dict = Depends(get_current_
 
 
 @app.post("/api/licensing/{license_id}/validate-contract")
-def validate_contract(license_id: int, current_user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+def validate_contract(license_id: int, request: Request, current_user: dict = Depends(get_current_user)):
     if not (_verify_client_owns_license(current_user["user_id"], license_id) or
             _verify_talent_owns_license(current_user["user_id"], license_id)):
         raise HTTPException(403, "Not authorized")
@@ -922,7 +959,8 @@ def validate_contract(license_id: int, current_user: dict = Depends(get_current_
 
 
 @app.post("/api/licensing/{license_id}/improve-contract")
-def improve_contract(license_id: int, req: ContractImproveRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+def improve_contract(license_id: int, req: ContractImproveRequest, request: Request, current_user: dict = Depends(get_current_user)):
     if not (_verify_client_owns_license(current_user["user_id"], license_id) or
             _verify_talent_owns_license(current_user["user_id"], license_id)):
         raise HTTPException(403, "Not authorized")
@@ -1052,6 +1090,18 @@ def list_licenses(current_user: dict = Depends(get_current_user)):
 
 @app.post("/api/watermark/report")
 def report_watermark(req: WatermarkReportRequest, current_user: dict = Depends(get_current_user)):
+    # Only the talent whose likeness is being tracked, or a party on the
+    # associated license, can submit a detection report. Without this check
+    # any authenticated user could pollute another talent's tracking records.
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    owns_talent = talent_pid is not None and talent_pid == req.talent_id
+    owns_license = (
+        _verify_talent_owns_license(current_user["user_id"], req.license_id)
+        or _verify_client_owns_license(current_user["user_id"], req.license_id)
+    )
+    if not (owns_talent or owns_license):
+        raise HTTPException(403, "Not authorized to report a watermark for this talent/license")
+
     data = {
         "license_id": req.license_id, "talent_id": req.talent_id,
         "watermark_id": req.watermark_id, "platform_detected": req.platform_detected,
@@ -1095,7 +1145,32 @@ def get_talent_watermarks(talent_id: int, current_user: dict = Depends(get_curre
 
 @app.get("/api/audit/logs")
 def get_all_audit_logs(current_user: dict = Depends(get_current_user)):
-    res = db().table("audit_logs").select("*").order("created_at", desc=True).limit(200).execute()
+    # Previously returned all 200 most-recent audit logs to any authenticated
+    # user, which is a privilege-escalation leak (an attacker sees every
+    # licensing transaction in the system). Restrict to licenses the caller
+    # is a party on.
+    talent_pid = _get_user_profile_id(current_user["user_id"], "talent")
+    client_pid = _get_user_profile_id(current_user["user_id"], "client")
+
+    license_ids: set[int] = set()
+    if talent_pid:
+        r = db().table("license_requests").select("id").eq("talent_id", talent_pid).execute()
+        license_ids.update(row["id"] for row in (r.data or []))
+    if client_pid:
+        r = db().table("license_requests").select("id").eq("client_id", client_pid).execute()
+        license_ids.update(row["id"] for row in (r.data or []))
+
+    if not license_ids:
+        return []
+
+    res = (
+        db().table("audit_logs")
+        .select("*")
+        .in_("license_id", list(license_ids))
+        .order("created_at", desc=True)
+        .limit(200)
+        .execute()
+    )
     return res.data
 
 
