@@ -62,13 +62,13 @@ export default function ForAgentsPage() {
 
       <main className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-medium mb-8">For Agents</h1>
+          <h1 className="text-5xl md:text-6xl font-medium mb-8">For Agencies</h1>
           <div className="space-y-6 text-lg text-gray-600 mb-12">
-            <p className="leading-relaxed">Manage and protect the digital rights of the talent you represent.</p>
-            <p className="leading-relaxed">Face Library gives agencies a simple platform to control digital likeness, manage permissions, generate licensing contracts, and approve campaigns.</p>
-            <p className="leading-relaxed">The easiest way to protect, license, and monetize the faces you represent.</p>
+            <p className="leading-relaxed">AI-generated content is reshaping how talent is used in campaigns &mdash; and agencies need new tools to keep their roster protected and paid.</p>
+            <p className="leading-relaxed">Face Library gives agencies a single place to verify talent, control their digital likeness, set usage permissions, and generate UK-law compliant licensing contracts at scale.</p>
+            <p className="leading-relaxed">Every request is reviewable, every payment is tracked, and every rights grant is auditable &mdash; so your talent gets paid fairly and your agency stays in control of how faces are used.</p>
           </div>
-          <Link href="/agent/register" className="bg-black text-white px-8 py-4 rounded-lg hover:bg-gray-800 transition-colors text-lg inline-block">Register as Agent</Link>
+          <Link href="/agent/register" className="bg-black text-white px-8 py-4 rounded-lg hover:bg-gray-800 transition-colors text-lg inline-block">Register as Agency</Link>
         </div>
       </main>
 
