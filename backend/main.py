@@ -63,6 +63,8 @@ if JWT_SECRET == _DEFAULT_JWT_SECRET and os.getenv("ENV", "dev") not in {"dev", 
     )
 
 ALLOWED_ORIGINS = [
+    "https://face-library.com",
+    "https://www.face-library.com",
     "https://facelibrary.vercel.app",
     "https://face-library.vercel.app",
     "https://face-library-aswingiridhars-projects.vercel.app",

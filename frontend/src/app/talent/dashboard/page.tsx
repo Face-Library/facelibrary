@@ -25,8 +25,6 @@ import {
   Edit3,
   ExternalLink,
   LogOut,
-  MessageCircle,
-  Send,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -37,6 +35,7 @@ import {
   approveLicense,
   getWatermarkByTalent,
 } from "@/lib/api";
+import { FloatingAIChat } from "@/components/FloatingAIChat";
 
 /* ---------- Types ---------- */
 
@@ -116,8 +115,6 @@ export default function TalentDashboardPage() {
     bankName: "",
   });
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessage, setChatMessage] = useState("");
 
   /* --- Bootstrap data --- */
 
@@ -960,46 +957,7 @@ export default function TalentDashboardPage() {
         </div>
       )}
 
-      {/* ===== AI Chat Widget (floating) ===== */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {chatOpen && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-lg w-80 mb-3 overflow-hidden">
-            <div className="bg-black text-white px-4 py-3 flex items-center justify-between">
-              <span className="text-sm font-medium">AI Assistant</span>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="text-white/70 hover:text-white text-xs"
-              >
-                Close
-              </button>
-            </div>
-            <div className="p-4 h-64 overflow-y-auto">
-              <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 mb-3">
-                Hi! I can help you manage your Face Library profile. Ask me about
-                license terms, pricing, or campaign categories.
-              </div>
-            </div>
-            <div className="border-t border-gray-200 p-3 flex items-center gap-2">
-              <input
-                type="text"
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-              />
-              <button className="bg-black text-white p-2 rounded-lg hover:bg-gray-800 transition-colors">
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className="w-12 h-12 bg-black text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
-        >
-          <MessageCircle className="w-5 h-5" />
-        </button>
-      </div>
+      <FloatingAIChat variant="talent" />
     </div>
   );
 }
