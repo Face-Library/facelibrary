@@ -86,14 +86,12 @@ interface RequestData {
 
 /* ---------- Constants ---------- */
 
-const NAV_TABS: { label: string; href?: string }[] = [
-  { label: "Dashboard" },
-  { label: "Talent", href: "/discover-talent" },
-  { label: "Contracts", href: "/contract-templates" },
-  { label: "Billing", href: "/agent/billing" },
+const NAV_TABS: { label: string; href: string }[] = [
+  { label: "Dashboard", href: "/agent/dashboard" },
+  { label: "Talents", href: "/agent/talents" },
+  { label: "Licenses", href: "/agent/licenses" },
+  { label: "Revenue", href: "/agent/billing" },
   { label: "Messages", href: "/messages" },
-  { label: "Analytics" },
-  { label: "Settings" },
 ];
 
 /* ---------- Component ---------- */
@@ -106,7 +104,6 @@ export default function AgentDashboardPage() {
   const [requests, setRequests] = useState<RequestData[]>([]);
   const [expandedRequest, setExpandedRequest] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Dashboard");
   const [chatMessage, setChatMessage] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "Hi! I can help you manage your talent roster, review contracts, and analyze campaign performance. What would you like to do?" },
@@ -235,30 +232,15 @@ export default function AgentDashboardPage() {
             </Link>
             <div className="hidden md:flex items-center gap-1">
               {NAV_TABS.map((tab) => {
-                const active = activeTab === tab.label;
+                const active = tab.href === "/agent/dashboard";
                 const common = `px-3 py-4 text-sm transition-colors relative ${
                   active ? "text-black font-medium" : "text-gray-500 hover:text-black"
                 }`;
-                const indicator = active && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
-                );
-                if (tab.href) {
-                  return (
-                    <Link key={tab.label} href={tab.href} className={common}>
-                      {tab.label}
-                      {indicator}
-                    </Link>
-                  );
-                }
                 return (
-                  <button
-                    key={tab.label}
-                    onClick={() => setActiveTab(tab.label)}
-                    className={common}
-                  >
+                  <Link key={tab.label} href={tab.href} className={common}>
                     {tab.label}
-                    {indicator}
-                  </button>
+                    {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+                  </Link>
                 );
               })}
             </div>

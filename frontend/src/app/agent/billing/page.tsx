@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CreditCard, Shield, CheckCircle, Clock, XCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Shield, CheckCircle, Clock, XCircle, Loader2, LogOut, User } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   getBankDetails,
@@ -30,8 +30,16 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: React.R
 
 const COMMISSION_RATE = 0.10; // Agent keeps 10% (platform + agent split per contract).
 
+const NAV_TABS = [
+  { label: "Dashboard", href: "/agent/dashboard" },
+  { label: "Talents", href: "/agent/talents" },
+  { label: "Licenses", href: "/agent/licenses" },
+  { label: "Revenue", href: "/agent/billing" },
+  { label: "Messages", href: "/messages" },
+];
+
 export default function AgentBillingPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -121,28 +129,56 @@ export default function AgentBillingPage() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-black text-white flex items-center justify-center text-xs font-bold">FL</div>
-            <span className="font-semibold text-base tracking-wide">FACE LIBRARY</span>
-          </Link>
-          <Link
-            href="/agent/dashboard"
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-black"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-          </Link>
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">FL</span>
+              </div>
+            </Link>
+            <div className="hidden md:flex items-center gap-1">
+              {NAV_TABS.map((tab) => {
+                const isActive = tab.label === "Revenue";
+                return (
+                  <Link
+                    key={tab.label}
+                    href={tab.href}
+                    className={`px-3 py-4 text-sm transition-colors relative ${
+                      isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
+                    }`}
+                  >
+                    {tab.label}
+                    {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-medium text-gray-900">{user?.name || "—"}</span>
+            <button onClick={() => { logout(); router.push("/login"); }} className="text-gray-400 hover:text-gray-700 ml-1">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </header>
+      </nav>
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold mb-2">Billing &amp; Payouts</h1>
-          <p className="text-gray-600">
-            Manage your agency&apos;s bank details, review commission terms, and
-            track payouts from licensed campaigns.
-          </p>
+        <div className="flex items-center gap-3">
+          <Link href="/agent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
+            <ArrowLeft className="w-4 h-4" /> Dashboard
+          </Link>
+          <span className="h-4 w-px bg-gray-200" />
+          <div>
+            <h1 className="text-3xl font-semibold">Revenue</h1>
+            <p className="text-gray-600 text-sm">
+              Agency commissions, bank details, and payout history.
+            </p>
+          </div>
         </div>
 
         {/* Earnings & Payout Status */}
