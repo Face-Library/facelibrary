@@ -228,3 +228,109 @@ export const submitAvatarJob = (data: {
 
 export const getAvatarJob = (jobId: number) =>
   fetchAPI(`/api/talent/avatar/${jobId}`);
+
+// Messages
+export interface ConversationSummary {
+  id: number;
+  subject: string | null;
+  other_user: { id: number; email?: string; role?: string };
+  last_message: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+}
+
+export interface Message {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export const listConversations = (): Promise<ConversationSummary[]> =>
+  fetchAPI("/api/conversations");
+
+export const createConversation = (data: {
+  other_user_id: number;
+  subject?: string;
+  initial_message?: string;
+}): Promise<{ conversation_id: number }> =>
+  fetchAPI("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const getMessages = (convId: number): Promise<Message[]> =>
+  fetchAPI(`/api/conversations/${convId}/messages`);
+
+export const sendMessage = (convId: number, body: string): Promise<Message> =>
+  fetchAPI(`/api/conversations/${convId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+
+// Activity feed
+export interface ActivityItem {
+  id: number;
+  action: string;
+  user_id: number | null;
+  license_id: number | null;
+  details: string | null;
+  created_at: string;
+}
+
+export const getActivityFeed = (limit = 30): Promise<ActivityItem[]> =>
+  fetchAPI(`/api/activity?limit=${limit}`);
+
+// Tax documents
+export interface TaxDocument {
+  id: number;
+  user_id: number;
+  document_type: string;
+  tax_year: number;
+  status: string;
+  file_url: string | null;
+  generated_at: string | null;
+  created_at: string;
+}
+
+export const listTaxDocuments = (): Promise<TaxDocument[]> =>
+  fetchAPI("/api/tax-documents");
+
+export const requestTaxDocument = (data: {
+  document_type: string;
+  tax_year: number;
+}): Promise<TaxDocument> =>
+  fetchAPI("/api/tax-documents/request", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+// Bank account details (for payouts)
+export interface BankDetails {
+  account_holder_name: string;
+  bank_name?: string | null;
+  account_number_last4?: string | null;
+  sort_code?: string | null;
+  routing_number?: string | null;
+  iban_last4?: string | null;
+  country?: string | null;
+}
+
+export const getBankDetails = (): Promise<BankDetails | null> =>
+  fetchAPI("/api/bank-details");
+
+export const updateBankDetails = (data: {
+  account_holder_name: string;
+  bank_name?: string;
+  account_number?: string;
+  sort_code?: string;
+  routing_number?: string;
+  iban?: string;
+  country?: string;
+}): Promise<{ ok: boolean }> =>
+  fetchAPI("/api/bank-details", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });

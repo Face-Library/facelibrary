@@ -1626,6 +1626,312 @@ def get_license_templates():
 
 
 # ============================================================================
+# MESSAGES (direct-message threads between any two users)
+# ============================================================================
+
+class ConversationCreateRequest(BaseModel):
+    other_user_id: int
+    subject: str | None = None
+    initial_message: str | None = None
+
+
+class MessageSendRequest(BaseModel):
+    body: str
+
+
+def _conversation_participants(conv: dict) -> tuple[int, int]:
+    return int(conv["participant_a_id"]), int(conv["participant_b_id"])
+
+
+def _require_conversation_access(conv_id: int, user_id: int) -> dict:
+    res = db().table("conversations").select("*").eq("id", conv_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(404, "Conversation not found")
+    conv = res.data[0]
+    a, b = _conversation_participants(conv)
+    if user_id not in (a, b):
+        raise HTTPException(403, "Not a participant in this conversation")
+    return conv
+
+
+@app.get("/api/conversations")
+def list_conversations(current_user: dict = Depends(get_current_user)):
+    """Conversations the current user participates in, with counterpart name + last message preview."""
+    uid = current_user["user_id"]
+    res = (
+        db().table("conversations")
+        .select("*")
+        .or_(f"participant_a_id.eq.{uid},participant_b_id.eq.{uid}")
+        .order("last_message_at", desc=True, nullsfirst=False)
+        .execute()
+    )
+    convs = res.data or []
+    other_ids = {_conversation_participants(c)[1] if _conversation_participants(c)[0] == uid
+                 else _conversation_participants(c)[0] for c in convs}
+    users_by_id: dict[int, dict] = {}
+    if other_ids:
+        users_res = db().table("users").select("id,email,role").in_("id", list(other_ids)).execute()
+        users_by_id = {int(u["id"]): u for u in (users_res.data or [])}
+
+    out = []
+    for c in convs:
+        a, b = _conversation_participants(c)
+        other_id = b if a == uid else a
+        other = users_by_id.get(other_id) or {}
+        last_msg_res = (
+            db().table("messages")
+            .select("body,sender_id,created_at")
+            .eq("conversation_id", c["id"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        last = (last_msg_res.data or [{}])[0]
+        unread_res = (
+            db().table("messages")
+            .select("id", count="exact")
+            .eq("conversation_id", c["id"])
+            .neq("sender_id", uid)
+            .is_("read_at", "null")
+            .execute()
+        )
+        out.append({
+            "id": c["id"],
+            "subject": c.get("subject"),
+            "other_user": {"id": other_id, "email": other.get("email"), "role": other.get("role")},
+            "last_message": last.get("body"),
+            "last_message_at": c.get("last_message_at"),
+            "unread_count": unread_res.count or 0,
+        })
+    return out
+
+
+@app.post("/api/conversations")
+@limiter.limit("10/minute")
+def create_conversation(req: ConversationCreateRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    if req.other_user_id == uid:
+        raise HTTPException(400, "Cannot message yourself")
+    other = db().table("users").select("id").eq("id", req.other_user_id).limit(1).execute()
+    if not other.data:
+        raise HTTPException(404, "Recipient not found")
+
+    # Find-or-create (the unique index on (least, greatest) prevents duplicates).
+    low, high = min(uid, req.other_user_id), max(uid, req.other_user_id)
+    existing = (
+        db().table("conversations").select("*")
+        .eq("participant_a_id", low).eq("participant_b_id", high)
+        .limit(1).execute()
+    )
+    if existing.data:
+        conv = existing.data[0]
+    else:
+        ins = db().table("conversations").insert({
+            "participant_a_id": low,
+            "participant_b_id": high,
+            "subject": req.subject,
+        }).execute()
+        conv = ins.data[0]
+
+    if req.initial_message:
+        msg = db().table("messages").insert({
+            "conversation_id": conv["id"],
+            "sender_id": uid,
+            "body": req.initial_message,
+        }).execute()
+        db().table("conversations").update(
+            {"last_message_at": msg.data[0]["created_at"]}
+        ).eq("id", conv["id"]).execute()
+
+    return {"conversation_id": conv["id"]}
+
+
+@app.get("/api/conversations/{conv_id}/messages")
+def list_messages(conv_id: int, current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    _require_conversation_access(conv_id, uid)
+    msgs = (
+        db().table("messages").select("*")
+        .eq("conversation_id", conv_id)
+        .order("created_at", desc=False).execute()
+    )
+    # Mark all incoming as read.
+    unread_ids = [m["id"] for m in (msgs.data or []) if m["sender_id"] != uid and not m.get("read_at")]
+    if unread_ids:
+        db().table("messages").update({"read_at": datetime.utcnow().isoformat()}).in_("id", unread_ids).execute()
+    return msgs.data or []
+
+
+@app.post("/api/conversations/{conv_id}/messages")
+@limiter.limit("60/minute")
+def send_message(conv_id: int, req: MessageSendRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    _require_conversation_access(conv_id, uid)
+    body = (req.body or "").strip()
+    if not body:
+        raise HTTPException(400, "Message body is required")
+    if len(body) > 4000:
+        raise HTTPException(400, "Message too long (max 4000 characters)")
+    ins = db().table("messages").insert({
+        "conversation_id": conv_id, "sender_id": uid, "body": body,
+    }).execute()
+    db().table("conversations").update(
+        {"last_message_at": ins.data[0]["created_at"]}
+    ).eq("id", conv_id).execute()
+    return ins.data[0]
+
+
+# ============================================================================
+# ACTIVITY FEED (role-aware projection of audit_logs)
+# ============================================================================
+
+@app.get("/api/activity")
+def activity_feed(limit: int = 30, current_user: dict = Depends(get_current_user)):
+    """Recent activity relevant to the current user.
+    - Talents: their own license requests, approvals, payouts, contract events.
+    - Agents: events on talents they manage.
+    - Clients: their own campaign/license events.
+    audit_logs stores `action`, `user_id`, `license_id`, `details`, `created_at`.
+    """
+    uid = current_user["user_id"]
+    role = current_user["role"]
+    limit = max(1, min(limit, 100))
+
+    q = db().table("audit_logs").select("*").order("created_at", desc=True).limit(limit)
+    if role == "talent":
+        talent_pid = _get_user_profile_id(uid, "talent")
+        if not talent_pid:
+            return []
+        lic_res = db().table("license_requests").select("id").eq("talent_id", talent_pid).execute()
+        lic_ids = [r["id"] for r in (lic_res.data or [])]
+        if not lic_ids:
+            return []
+        q = q.in_("license_id", lic_ids)
+    elif role == "agent":
+        agent_pid = _get_user_profile_id(uid, "agent")
+        if not agent_pid:
+            return []
+        links_res = db().table("talent_agent_links").select("talent_id").eq("agent_id", agent_pid).execute()
+        talent_ids = [r["talent_id"] for r in (links_res.data or [])]
+        if not talent_ids:
+            return []
+        lic_res = db().table("license_requests").select("id").in_("talent_id", talent_ids).execute()
+        lic_ids = [r["id"] for r in (lic_res.data or [])]
+        if not lic_ids:
+            return []
+        q = q.in_("license_id", lic_ids)
+    else:  # client
+        client_pid = _get_user_profile_id(uid, "client")
+        if not client_pid:
+            return []
+        lic_res = db().table("license_requests").select("id").eq("client_id", client_pid).execute()
+        lic_ids = [r["id"] for r in (lic_res.data or [])]
+        if not lic_ids:
+            return []
+        q = q.in_("license_id", lic_ids)
+    return q.execute().data or []
+
+
+# ============================================================================
+# TAX DOCUMENTS (stub — real generation requires Stripe Tax / 1099 provider)
+# ============================================================================
+
+class TaxDocumentRequest(BaseModel):
+    document_type: str
+    tax_year: int
+
+
+@app.get("/api/tax-documents")
+def list_tax_documents(current_user: dict = Depends(get_current_user)):
+    res = (
+        db().table("tax_documents").select("*")
+        .eq("user_id", current_user["user_id"])
+        .order("created_at", desc=True).execute()
+    )
+    return res.data or []
+
+
+@app.post("/api/tax-documents/request")
+@limiter.limit("5/minute")
+def request_tax_document(req: TaxDocumentRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    """Record a tax document request. Generation is async and handled manually
+    until a tax provider (Stripe Tax, 1099 provider) is integrated."""
+    allowed = {"1099-NEC", "1099-MISC", "W-9", "annual_statement"}
+    if req.document_type not in allowed:
+        raise HTTPException(400, f"document_type must be one of {sorted(allowed)}")
+    if req.tax_year < 2020 or req.tax_year > datetime.utcnow().year:
+        raise HTTPException(400, "Invalid tax_year")
+    ins = db().table("tax_documents").insert({
+        "user_id": current_user["user_id"],
+        "document_type": req.document_type,
+        "tax_year": req.tax_year,
+        "status": "pending",
+    }).execute()
+    return ins.data[0]
+
+
+# ============================================================================
+# BANK ACCOUNT DETAILS (for manual payouts — Stripe Connect still out of MVP)
+# ============================================================================
+
+class BankDetailsRequest(BaseModel):
+    account_holder_name: str
+    bank_name: str | None = None
+    account_number: str | None = None
+    sort_code: str | None = None
+    routing_number: str | None = None
+    iban: str | None = None
+    country: str | None = None
+
+
+def _redact_bank_details(req: BankDetailsRequest) -> dict:
+    """Store only last-4 of the account number. Full details belong in a
+    tokenized vault (Stripe Connect) — this stub lets operators contact the
+    user by name + last-4 to complete manual transfers."""
+    last4 = None
+    if req.account_number:
+        last4 = req.account_number[-4:]
+    return {
+        "account_holder_name": req.account_holder_name,
+        "bank_name": req.bank_name,
+        "account_number_last4": last4,
+        "sort_code": req.sort_code,
+        "routing_number": req.routing_number,
+        "iban_last4": req.iban[-4:] if req.iban else None,
+        "country": req.country,
+    }
+
+
+@app.post("/api/bank-details")
+@limiter.limit("5/minute")
+def update_bank_details(req: BankDetailsRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    role = current_user["role"]
+    table = {"talent": "talent_profiles", "agent": "agent_profiles"}.get(role)
+    if not table:
+        raise HTTPException(403, "Only talent and agent accounts have payout bank details")
+    profile_id = _get_user_profile_id(current_user["user_id"], role)
+    if not profile_id:
+        raise HTTPException(404, f"{role} profile not found")
+    db().table(table).update(
+        {"bank_account_details": _redact_bank_details(req)}
+    ).eq("id", profile_id).execute()
+    return {"ok": True}
+
+
+@app.get("/api/bank-details")
+def get_bank_details(current_user: dict = Depends(get_current_user)):
+    role = current_user["role"]
+    table = {"talent": "talent_profiles", "agent": "agent_profiles"}.get(role)
+    if not table:
+        return None
+    profile_id = _get_user_profile_id(current_user["user_id"], role)
+    if not profile_id:
+        return None
+    res = db().table(table).select("bank_account_details").eq("id", profile_id).limit(1).execute()
+    return (res.data or [{}])[0].get("bank_account_details")
+
+
+# ============================================================================
 # HEALTH (public)
 # ============================================================================
 
