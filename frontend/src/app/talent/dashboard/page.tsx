@@ -78,17 +78,43 @@ interface WatermarkEntry {
 /* ---------- Constants ---------- */
 
 const AD_CATEGORIES = [
-  "Fashion",
   "Beauty",
-  "Technology",
+  "Fashion",
+  "Lifestyle",
+  "Tech",
+  "Sports",
+  "Automotive",
+  "Luxury",
   "Travel",
-  "Auto",
+  "Alcohol",
+  "Lingerie",
+  "Swimwear",
+  "Jewelry",
+  "Fitness",
+  "Gaming",
   "Finance",
-  "Health",
-  "Other",
+  "Healthcare",
 ];
 
-const NAV_TABS = ["Dashboard", "My Face", "Licenses", "Usage", "Settings"];
+const LICENSING_REGIONS = [
+  "Global",
+  "UK",
+  "Europe",
+  "Middle East",
+  "North America",
+  "Asia",
+  "Australia",
+];
+
+// Tabs with an href navigate to a separate page; tabs without stay in-page.
+const NAV_TABS: { label: string; href?: string }[] = [
+  { label: "Dashboard" },
+  { label: "My Face" },
+  { label: "Licenses" },
+  { label: "Usage" },
+  { label: "Messages", href: "/messages" },
+  { label: "Settings" },
+];
 
 /* ---------- Component ---------- */
 
@@ -101,6 +127,7 @@ export default function TalentDashboardPage() {
   const [blocked, setBlocked] = useState<string[]>([]);
   const [approvalMode, setApprovalMode] = useState("manual");
   const [geoScope, setGeoScope] = useState("global");
+  const [regions, setRegions] = useState<string[]>(["Global"]);
   const [aiRights, setAiRights] = useState("clothing_only");
   const [exclusivity, setExclusivity] = useState("exclusive");
   const [requests, setRequests] = useState<LicenseRequestData[]>([]);
@@ -156,6 +183,12 @@ export default function TalentDashboardPage() {
       setBlocked((p.restricted_categories || "").split(",").filter(Boolean));
       setApprovalMode(p.approval_mode || "manual");
       setGeoScope(p.geo_scope || "global");
+      const parsedRegions = (p.geo_scope || "Global")
+        .split(",")
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .filter((r: string) => LICENSING_REGIONS.includes(r));
+      setRegions(parsedRegions.length > 0 ? parsedRegions : ["Global"]);
       setRequests(r);
 
       try {
@@ -189,11 +222,12 @@ export default function TalentDashboardPage() {
     if (!profileId) return;
     setSaving(true);
     try {
+      const effectiveRegions = regions.length > 0 ? regions.join(",") : geoScope;
       await updateTalentPreferences(profileId, {
         categories: allowed.join(","),
         restricted_categories: blocked.join(","),
         approval_mode: approvalMode,
-        geo_scope: geoScope,
+        geo_scope: effectiveRegions,
       });
       setMessage("Preferences saved!");
       setTimeout(() => setMessage(""), 3000);
@@ -281,22 +315,27 @@ export default function TalentDashboardPage() {
               </div>
             </Link>
             <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-4 text-sm transition-colors relative ${
-                    activeTab === tab
-                      ? "text-black font-medium"
-                      : "text-gray-500 hover:text-black"
-                  }`}
-                >
-                  {tab}
-                  {activeTab === tab && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
-                  )}
-                </button>
-              ))}
+              {NAV_TABS.map((tab) => {
+                const isActive = activeTab === tab.label;
+                const className = `px-3 py-4 text-sm transition-colors relative ${
+                  isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
+                }`;
+                if (tab.href) {
+                  return (
+                    <Link key={tab.label} href={tab.href} className={className}>
+                      {tab.label}
+                    </Link>
+                  );
+                }
+                return (
+                  <button key={tab.label} onClick={() => setActiveTab(tab.label)} className={className}>
+                    {tab.label}
+                    {isActive && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -325,6 +364,24 @@ export default function TalentDashboardPage() {
             {message}
           </div>
         )}
+
+        {/* ===== Create Your Avatar (onboarding prompt) ===== */}
+        <div className="mb-6 bg-gradient-to-r from-black via-gray-900 to-black text-white rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Create Your AI Avatar</h2>
+            <p className="text-sm text-gray-300 mt-1 max-w-xl">
+              Upload a handful of face photos, body shots, and a short identity
+              video. We&apos;ll generate a protected digital likeness you can
+              license to brands.
+            </p>
+          </div>
+          <Link
+            href="/create-avatar"
+            className="inline-flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors whitespace-nowrap"
+          >
+            Create Avatar Now
+          </Link>
+        </div>
 
         {/* ===== 3-column grid ===== */}
         <div className="grid grid-cols-12 gap-6">
@@ -875,6 +932,100 @@ export default function TalentDashboardPage() {
                 View Earnings &amp; Payouts →
               </Link>
             </div>
+          </div>
+        </div>
+
+        {/* ===== Licensing Regions + Category Permissions (below grid) ===== */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Licensing Regions */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+              Licensing Regions
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Choose where brands can license your likeness. Selecting
+              &ldquo;Global&rdquo; overrides the rest.
+            </p>
+            <div className="space-y-2">
+              {LICENSING_REGIONS.map((r) => {
+                const checked = regions.includes(r);
+                return (
+                  <label
+                    key={r}
+                    className="flex items-center gap-3 py-1.5 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setRegions((prev) => {
+                          if (r === "Global") {
+                            return checked ? [] : ["Global"];
+                          }
+                          const next = checked
+                            ? prev.filter((x) => x !== r)
+                            : [...prev.filter((x) => x !== "Global"), r];
+                          return next;
+                        });
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                    />
+                    <span className="text-sm text-gray-800">{r}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Regions"}
+            </button>
+          </div>
+
+          {/* Category Permissions */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+              Category Permissions
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Tick the campaign categories you&apos;re open to. Unchecked
+              categories will be rejected automatically.
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {AD_CATEGORIES.map((cat) => {
+                const checked = allowed.includes(cat);
+                return (
+                  <label
+                    key={cat}
+                    className="flex items-center gap-2 py-1 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        if (checked) {
+                          setAllowed(allowed.filter((c) => c !== cat));
+                        } else {
+                          setAllowed([...allowed, cat]);
+                          setBlocked(blocked.filter((c) => c !== cat));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                    />
+                    <span className="text-sm text-gray-800">{cat}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Categories"}
+            </button>
           </div>
         </div>
       </div>
