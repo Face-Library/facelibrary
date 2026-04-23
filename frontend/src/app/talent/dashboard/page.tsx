@@ -107,13 +107,13 @@ const LICENSING_REGIONS = [
 ];
 
 // Tabs with an href navigate to a separate page; tabs without stay in-page.
-const NAV_TABS: { label: string; href?: string }[] = [
-  { label: "Dashboard" },
-  { label: "My Face" },
-  { label: "Licenses" },
-  { label: "Usage" },
+const NAV_TABS: { label: string; href: string }[] = [
+  { label: "Dashboard", href: "/talent/dashboard" },
+  { label: "My Face", href: "/talent/my-face" },
+  { label: "Licenses", href: "/talent/licenses" },
+  { label: "Usage", href: "/talent/usage" },
+  { label: "Billing", href: "/talent/earnings" },
   { label: "Messages", href: "/messages" },
-  { label: "Settings" },
 ];
 
 /* ---------- Component ---------- */
@@ -141,7 +141,6 @@ export default function TalentDashboardPage() {
     name: "",
     bankName: "",
   });
-  const [activeTab, setActiveTab] = useState("Dashboard");
 
   /* --- Bootstrap data --- */
 
@@ -316,24 +315,17 @@ export default function TalentDashboardPage() {
             </Link>
             <div className="hidden md:flex items-center gap-1">
               {NAV_TABS.map((tab) => {
-                const isActive = activeTab === tab.label;
+                const isActive = tab.href === "/talent/dashboard";
                 const className = `px-3 py-4 text-sm transition-colors relative ${
                   isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
                 }`;
-                if (tab.href) {
-                  return (
-                    <Link key={tab.label} href={tab.href} className={className}>
-                      {tab.label}
-                    </Link>
-                  );
-                }
                 return (
-                  <button key={tab.label} onClick={() => setActiveTab(tab.label)} className={className}>
+                  <Link key={tab.label} href={tab.href} className={className}>
                     {tab.label}
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
                     )}
-                  </button>
+                  </Link>
                 );
               })}
             </div>
@@ -494,12 +486,18 @@ export default function TalentDashboardPage() {
 
               {/* Action Buttons */}
               <div className="space-y-2 mb-5">
-                <button className="w-full flex items-center justify-center gap-2 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors">
+                <Link
+                  href="/talent/my-face"
+                  className="w-full flex items-center justify-center gap-2 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                >
                   <Edit3 className="w-3.5 h-3.5" /> Edit Profile
-                </button>
-                <button className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                </Link>
+                <Link
+                  href="/talent/my-face"
+                  className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
                   <Upload className="w-3.5 h-3.5" /> Upload Images
-                </button>
+                </Link>
               </div>
 
               {/* Connected Accounts */}

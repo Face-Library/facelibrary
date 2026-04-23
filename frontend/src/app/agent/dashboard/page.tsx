@@ -388,9 +388,12 @@ export default function AgentDashboardPage() {
                 >
                   <FileText className="w-3.5 h-3.5" /> Generate Contract
                 </button>
-                <button className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                <Link
+                  href="/agent/billing"
+                  className="w-full flex items-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
                   <BarChart3 className="w-3.5 h-3.5" /> View Analytics
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -591,9 +594,12 @@ export default function AgentDashboardPage() {
                           </span>
                         </div>
                       </div>
-                      <button className="text-xs text-gray-500 hover:text-black transition-colors">
+                      <Link
+                        href={`/talent-profile/${t.id}`}
+                        className="text-xs text-gray-500 hover:text-black transition-colors"
+                      >
                         Manage &rarr;
-                      </button>
+                      </Link>
                     </div>
                   ))}
                 </div>

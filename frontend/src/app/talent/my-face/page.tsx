@@ -1,0 +1,459 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft, Upload, LogOut, User, Loader2, CheckCircle,
+  Sun, Image as ImageIcon, Sparkles, Eye, Wind, Glasses, Smile,
+  Shield, Play,
+} from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { getTalent, listTalents, submitAvatarJob } from "@/lib/api";
+
+/* ---------- Constants ---------- */
+
+const FACE_DIGITS = [
+  "Front", "Left Profile", "Right Profile", "3/4 Left",
+  "3/4 Right", "Head Up", "Head Down", "Neutral",
+  "Smile", "Eyes Closed", "Eyes Open", "Back Head",
+];
+const FACE_VIDEOS = ["Neutral Talking", "Smile", "Turn Head"];
+const BODY_DIGITS = [
+  "Full Body Front", "Left", "Right", "Back",
+  "3/4 Left", "3/4 Right", "Walking", "Turn 360",
+];
+const GUIDELINES = [
+  { icon: Sun, label: "Natural Lighting" },
+  { icon: ImageIcon, label: "White Background" },
+  { icon: Sparkles, label: "No Filters" },
+  { icon: Eye, label: "Face Fully Visible" },
+  { icon: Wind, label: "Hair Away from Face" },
+  { icon: Glasses, label: "No Sunglasses" },
+  { icon: Smile, label: "Neutral Expression" },
+];
+
+const NAV_TABS = [
+  { label: "Dashboard", href: "/talent/dashboard" },
+  { label: "My Face", href: "/talent/my-face" },
+  { label: "Licenses", href: "/talent/licenses" },
+  { label: "Usage", href: "/talent/usage" },
+  { label: "Billing", href: "/talent/earnings" },
+  { label: "Messages", href: "/messages" },
+];
+
+interface TalentProfile {
+  id: number;
+  user_id: number;
+  name?: string;
+  stage_name?: string;
+  photo_url?: string | null;
+  image_url?: string | null;
+  avatar_url?: string | null;
+}
+
+/* ---------- Component ---------- */
+
+export default function TalentMyFacePage() {
+  const { user, logout, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  const [profile, setProfile] = useState<TalentProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [facePhotos, setFacePhotos] = useState<Record<string, File | null>>({});
+  const [faceVideos, setFaceVideos] = useState<Record<string, File | null>>({});
+  const [bodyPhotos, setBodyPhotos] = useState<Record<string, File | null>>({});
+  const [identityVideo, setIdentityVideo] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && (!user || user.role !== "talent")) {
+      router.push("/login");
+      return;
+    }
+    if (!user) return;
+    (async () => {
+      try {
+        let p: TalentProfile | null = null;
+        if (user.profile_id) {
+          p = (await getTalent(user.profile_id)) as TalentProfile;
+        } else {
+          const ts: TalentProfile[] = await listTalents();
+          p = ts.find((t) => t.user_id === user.user_id) ?? null;
+        }
+        setProfile(p);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user, authLoading, router]);
+
+  const hasAvatar = Boolean(profile?.avatar_url);
+  const faceCount = Object.values(facePhotos).filter(Boolean).length;
+  const bodyCount = Object.values(bodyPhotos).filter(Boolean).length;
+  const canGenerate = faceCount >= 5 && bodyCount >= 4;
+
+  const handleGenerate = async () => {
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const job = await submitAvatarJob({
+        face_photo_count: faceCount,
+        body_photo_count: bodyCount,
+      });
+      router.push(`/avatar-generating?jobId=${job.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start avatar generation");
+      setSubmitting(false);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const image = profile?.photo_url || profile?.image_url || profile?.avatar_url || null;
+
+  return (
+    <div className="min-h-screen bg-white">
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">FL</span>
+              </div>
+            </Link>
+            <div className="hidden md:flex items-center gap-1">
+              {NAV_TABS.map((tab) => {
+                const isActive = tab.label === "My Face";
+                return (
+                  <Link
+                    key={tab.label}
+                    href={tab.href}
+                    className={`px-3 py-4 text-sm transition-colors relative ${
+                      isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
+                    }`}
+                  >
+                    {tab.label}
+                    {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-medium text-gray-900">{user?.name || "—"}</span>
+            <button onClick={() => { logout(); router.push("/login"); }} className="text-gray-400 hover:text-gray-700 ml-1">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-[1400px] mx-auto px-6 lg:px-8 py-10">
+        <div className="mb-10">
+          <div className="flex items-center gap-3 mb-2">
+            <Link href="/talent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
+              <ArrowLeft className="w-4 h-4" /> Dashboard
+            </Link>
+            <span className="h-4 w-px bg-gray-200" />
+          </div>
+          <h1 className="text-3xl font-semibold mb-2">
+            {hasAvatar ? "Your Digits" : "Upload Your Digits"}
+          </h1>
+          <p className="text-gray-600 text-base">
+            {hasAvatar
+              ? "Your digital avatar is generated. Replace any digit to re-trigger avatar regeneration."
+              : "Premium AI dataset capture. Upload exact examples shown below."}
+          </p>
+        </div>
+
+        {/* Avatar status banner */}
+        {hasAvatar && profile?.avatar_url && (
+          <div className="mb-10 bg-green-50 border border-green-200 rounded-2xl p-6 flex items-center gap-5">
+            <div className="w-20 h-20 rounded-xl overflow-hidden border border-green-200 flex-shrink-0 bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={profile.avatar_url} alt="Your avatar" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <h3 className="font-semibold">Avatar ready</h3>
+              </div>
+              <p className="text-sm text-gray-700">
+                Your avatar has been generated and is available for licensing. Face ID:{" "}
+                <span className="font-mono">FL-{String(profile.id).padStart(6, "0")}</span>
+              </p>
+            </div>
+            <a
+              href={profile.avatar_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-lg text-sm hover:border-black hover:text-black transition-colors"
+            >
+              <Eye className="w-4 h-4" /> View avatar
+            </a>
+          </div>
+        )}
+
+        {/* Current photo preview + guidelines */}
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 mb-10">
+          <div>
+            <div className="aspect-square rounded-2xl border border-gray-200 overflow-hidden bg-gray-50 relative">
+              {image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image} alt={profile?.name || "Talent photo"} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <User className="w-16 h-16" />
+                </div>
+              )}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="text-white/20 text-2xl font-bold tracking-wider -rotate-12">FACE LIBRARY</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+              <Shield className="w-4 h-4" />
+              Face ID: {profile ? `FL-${String(profile.id).padStart(6, "0")}` : "—"}
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4">Capture Guidelines</h2>
+            <p className="text-sm text-gray-600 mb-5">
+              Follow these guidelines for optimal avatar quality.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+              {GUIDELINES.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                    <Icon className="w-6 h-6 text-gray-700" />
+                  </div>
+                  <p className="text-xs font-medium text-gray-900">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Face Digits */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-semibold">Face Digits</h2>
+            <span className="text-sm text-gray-500">
+              {faceCount}/{FACE_DIGITS.length} uploaded
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">
+            Upload {FACE_DIGITS.length} face photos covering different angles and expressions.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {FACE_DIGITS.map((label) => {
+              const isUploaded = Boolean(facePhotos[label]);
+              return (
+                <label
+                  key={label}
+                  className={`aspect-square bg-white rounded-2xl border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 shadow-sm relative ${
+                    isUploaded ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFacePhotos((prev) => ({ ...prev, [label]: file }));
+                    }}
+                  />
+                  {isUploaded ? (
+                    <CheckCircle className="w-10 h-10 text-green-600" />
+                  ) : (
+                    <Upload className="w-8 h-8 text-gray-400" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700 text-center px-3 leading-tight">
+                    {label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Face Videos */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-semibold">Face Videos</h2>
+            <span className="text-sm text-gray-500">
+              {Object.values(faceVideos).filter(Boolean).length}/{FACE_VIDEOS.length} uploaded
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">Short face video clips.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {FACE_VIDEOS.map((label) => {
+              const isUploaded = Boolean(faceVideos[label]);
+              return (
+                <label
+                  key={label}
+                  className={`aspect-square bg-white rounded-2xl border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 shadow-sm ${
+                    isUploaded ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFaceVideos((prev) => ({ ...prev, [label]: file }));
+                    }}
+                  />
+                  {isUploaded ? (
+                    <CheckCircle className="w-10 h-10 text-green-600" />
+                  ) : (
+                    <Play className="w-8 h-8 text-gray-400" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700 text-center px-3 leading-tight">
+                    {label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Body Digits */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-semibold">Body Digits</h2>
+            <span className="text-sm text-gray-500">
+              {bodyCount}/{BODY_DIGITS.length} uploaded
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">
+            Upload {BODY_DIGITS.length} body photos covering different angles and poses.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {BODY_DIGITS.map((label) => {
+              const isUploaded = Boolean(bodyPhotos[label]);
+              return (
+                <label
+                  key={label}
+                  className={`aspect-square bg-white rounded-2xl border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 shadow-sm ${
+                    isUploaded ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setBodyPhotos((prev) => ({ ...prev, [label]: file }));
+                    }}
+                  />
+                  {isUploaded ? (
+                    <CheckCircle className="w-10 h-10 text-green-600" />
+                  ) : (
+                    <Upload className="w-8 h-8 text-gray-400" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700 text-center px-3 leading-tight">
+                    {label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Identity Video */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold mb-1">Identity Video</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Record a short video confirming your identity.
+          </p>
+          <div className="max-w-2xl">
+            <label
+              className={`aspect-video bg-white rounded-2xl border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-4 shadow-sm p-8 ${
+                identityVideo ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => setIdentityVideo(e.target.files?.[0] || null)}
+              />
+              {identityVideo ? (
+                <>
+                  <CheckCircle className="w-12 h-12 text-green-600" />
+                  <p className="text-lg font-semibold text-green-700">{identityVideo.name}</p>
+                  <p className="text-xs text-gray-500">Click to replace</p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-12 h-12 text-gray-400" />
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-gray-700 mb-3">Record Video</p>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p>Example script:</p>
+                      <p className="italic">&ldquo;Hello, my name is...&rdquo;</p>
+                      <p className="italic">&ldquo;I am from...&rdquo;</p>
+                      <p className="italic">&ldquo;This video confirms my identity.&rdquo;</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </label>
+          </div>
+        </section>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-4 pt-6 border-t border-gray-200">
+          <Link
+            href="/talent/dashboard"
+            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:border-gray-900 hover:text-black transition-colors"
+          >
+            Save Draft
+          </Link>
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate || submitting}
+            className="px-8 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Starting…
+              </>
+            ) : hasAvatar ? (
+              "Regenerate Avatar"
+            ) : (
+              "Generate Avatar"
+            )}
+          </button>
+          {!canGenerate && (
+            <p className="text-xs text-gray-500">
+              Upload at least 5 face photos and 4 body photos to continue.
+            </p>
+          )}
+        </div>
+        {error && (
+          <p className="text-xs text-red-600 mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+            {error}
+          </p>
+        )}
+      </main>
+    </div>
+  );
+}
