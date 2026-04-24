@@ -312,52 +312,6 @@ export default function AgentDashboardPage() {
               </div>
             </div>
 
-            {/* Your Talents (Figma label) */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Your Talents
-                </h3>
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  {managedTalents.length}
-                </span>
-              </div>
-              {managedTalents.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No talents linked yet.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {managedTalents.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {t.image_url ? (
-                          <img
-                            src={t.image_url}
-                            alt={t.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <ImageIcon className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {t.name}
-                        </p>
-                        <p className="text-xs text-gray-500 capitalize">
-                          {t.geo_scope}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Quick Actions */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">
@@ -420,6 +374,52 @@ export default function AgentDashboardPage() {
                 </div>
               </div>
             )}
+
+            {/* Your Talents (Figma label) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Your Talents
+                </h3>
+                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {managedTalents.length}
+                </span>
+              </div>
+              {managedTalents.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No talents linked yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {managedTalents.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {t.image_url ? (
+                          <img
+                            src={t.image_url}
+                            alt={t.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {t.name}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize">
+                          {t.geo_scope}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* License Requests (Figma center col) */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
@@ -520,6 +520,61 @@ export default function AgentDashboardPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+
+            {/* Contracts & IP */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Contracts &amp; IP
+                </h3>
+                <Link
+                  href="/contract-templates"
+                  className="text-xs text-gray-500 hover:text-black"
+                >
+                  View all →
+                </Link>
+              </div>
+              {requests.length === 0 ? (
+                <p className="text-sm text-gray-500">No contracts yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {requests.slice(0, 4).map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-900 truncate">
+                          {r.talent_name}{" "}
+                          <span className="text-gray-400">×</span>{" "}
+                          {r.brand_name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {r.created_at
+                            ? new Date(r.created_at).toLocaleDateString("en-GB", {
+                                day: "2-digit", month: "short", year: "numeric",
+                              })
+                            : ""}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
+                          r.status === "active" || r.status === "approved"
+                            ? "bg-green-50 text-green-700"
+                            : r.status === "pending" ||
+                              r.status === "awaiting_approval"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {r.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -692,61 +747,6 @@ export default function AgentDashboardPage() {
                   ))}
                 </div>
               </div>
-            </div>
-
-            {/* Contracts & IP */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Contracts &amp; IP
-                </h3>
-                <Link
-                  href="/contract-templates"
-                  className="text-xs text-gray-500 hover:text-black"
-                >
-                  View all →
-                </Link>
-              </div>
-              {requests.length === 0 ? (
-                <p className="text-sm text-gray-500">No contracts yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {requests.slice(0, 4).map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-gray-900 truncate">
-                          {r.talent_name}{" "}
-                          <span className="text-gray-400">×</span>{" "}
-                          {r.brand_name}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {r.created_at
-                            ? new Date(r.created_at).toLocaleDateString("en-GB", {
-                                day: "2-digit", month: "short", year: "numeric",
-                              })
-                            : ""}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
-                          r.status === "active" || r.status === "approved"
-                            ? "bg-green-50 text-green-700"
-                            : r.status === "pending" ||
-                              r.status === "awaiting_approval"
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {r.status.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Activity */}
