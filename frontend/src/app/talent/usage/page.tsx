@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Loader2, ExternalLink, Eye, AlertTriangle, CheckCircle } from "lucide-react";
+import { LogOut, User, Loader2, ExternalLink, Eye, AlertTriangle, CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { listTalents, getTalentRequests, getWatermarkByTalent } from "@/lib/api";
 
@@ -162,15 +162,9 @@ export default function TalentUsagePage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-        <div className="mb-10 flex items-center gap-3">
-          <Link href="/talent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <span className="h-4 w-px bg-gray-200" />
-          <div>
-            <h1 className="text-3xl font-semibold">Usage</h1>
-            <p className="text-gray-600 text-sm">Track where your face is being used across campaigns.</p>
-          </div>
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold">Usage</h1>
+          <p className="text-gray-600 text-base mt-1">Track where your face is being used across campaigns.</p>
         </div>
 
         {error && (

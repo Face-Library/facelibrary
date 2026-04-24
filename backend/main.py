@@ -615,13 +615,27 @@ def get_talent_requests(talent_id: int, current_user: dict = Depends(get_current
     res = db().table("license_requests").select("*").eq("talent_id", talent_id).execute()
     result = []
     for r in res.data:
-        client_res = db().table("client_profiles").select("company_name").eq("id", r["client_id"]).execute()
-        client_name = client_res.data[0]["company_name"] if client_res.data else None
+        client_profile = db().table("client_profiles").select("company_name,user_id").eq("id", r["client_id"]).execute()
+        if client_profile.data:
+            client_row = client_profile.data[0]
+            brand_name = client_row.get("company_name")
+            client_user_id = client_row.get("user_id")
+        else:
+            brand_name = None
+            client_user_id = None
         result.append({
             "id": r["id"], "status": r["status"], "license_type": r.get("license_type"),
             "use_case": r.get("use_case"), "content_type": r.get("content_type"),
             "desired_duration_days": r.get("desired_duration_days"),
-            "proposed_price": r.get("proposed_price"), "client_name": client_name,
+            "desired_regions": r.get("desired_regions"),
+            "proposed_price": r.get("proposed_price"),
+            # Expose both the legacy `client_name` and the canonical `brand_name`
+            # field the frontend uses, plus the brand user id so the Negotiate
+            # button can open a DM with them via /api/conversations.
+            "client_name": brand_name,
+            "brand_name": brand_name,
+            "client_user_id": client_user_id,
+            "contract_generated": r.get("contract_generated"),
             "payment_status": r.get("payment_status"), "created_at": r.get("created_at"),
         })
     return result
@@ -800,12 +814,22 @@ def get_agent_requests(agent_id: int, current_user: dict = Depends(get_current_u
         for r in reqs.data:
             t_res = db().table("talent_profiles").select("user_id").eq("id", r["talent_id"]).execute()
             tu = db().table("users").select("name").eq("id", t_res.data[0]["user_id"]).execute() if t_res.data else type("", (), {"data": []})()
-            c_res = db().table("client_profiles").select("company_name").eq("id", r["client_id"]).execute()
+            c_res = db().table("client_profiles").select("company_name,user_id").eq("id", r["client_id"]).execute()
+            client_row = c_res.data[0] if c_res.data else {}
+            brand_name = client_row.get("company_name")
             result.append({
                 "id": r["id"], "status": r["status"], "license_type": r.get("license_type"),
                 "use_case": r.get("use_case"),
+                "content_type": r.get("content_type"),
+                "desired_duration_days": r.get("desired_duration_days"),
+                "desired_regions": r.get("desired_regions"),
+                "talent_id": r["talent_id"],
                 "talent_name": tu.data[0]["name"] if tu.data else None,
-                "client_name": c_res.data[0]["company_name"] if c_res.data else None,
+                "client_name": brand_name,
+                "brand_name": brand_name,
+                "client_user_id": client_row.get("user_id"),
+                "contract_generated": r.get("contract_generated"),
+                "payment_status": r.get("payment_status"),
                 "proposed_price": r.get("proposed_price"), "created_at": r.get("created_at"),
             })
     return result

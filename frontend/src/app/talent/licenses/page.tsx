@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Loader2, Inbox, CheckCircle, MessageSquare } from "lucide-react";
+import { LogOut, User, Loader2, Inbox, CheckCircle, MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   listTalents,
@@ -204,15 +204,9 @@ export default function TalentLicensesPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-        <div className="mb-10 flex items-center gap-3">
-          <Link href="/talent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <span className="h-4 w-px bg-gray-200" />
-          <div>
-            <h1 className="text-3xl font-semibold">Licenses</h1>
-            <p className="text-gray-600 text-sm">Review license requests and manage active licenses.</p>
-          </div>
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold">Licenses</h1>
+          <p className="text-gray-600 text-base mt-1">Review license requests and manage active licenses.</p>
         </div>
 
         {error && (
@@ -330,8 +324,8 @@ export default function TalentLicensesPage() {
                         <p className="text-gray-600">Time remaining:</p>
                         <p className="font-semibold">{formatTimeRemaining(row.created_at, row.desired_duration_days)}</p>
                       </div>
-                      <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium capitalize">
-                        {row.status}
+                      <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
+                        Active
                       </span>
                     </Link>
                   ))}

@@ -34,6 +34,7 @@ export const FIGMA_REFERENCE_IMAGES: Record<string, string> = {
   "3/4 Body Right": "https://images.unsplash.com/photo-1671797022922-71fe999ab2e9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600",
   "Walking": "https://images.unsplash.com/photo-1636189239307-9f3a701f30a8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600",
   "Turn 360": "https://images.unsplash.com/photo-1636189239307-9f3a701f30a8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600",
+  "Natural movement": "https://images.unsplash.com/photo-1636189239307-9f3a701f30a8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600",
 
   // Identity video
   "Identity Video": "https://images.unsplash.com/photo-1757495023467-a8263cf26fbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600",

@@ -25,8 +25,9 @@ const FACE_DIGITS = [
 const FACE_VIDEOS = ["Neutral talking", "Smile talking", "Turn head left/right"];
 const BODY_DIGITS = [
   "Full Body Front", "Full Body Left", "Full Body Right", "Full Body Back",
-  "3/4 Body Left", "3/4 Body Right", "Walking", "Turn 360",
+  "3/4 Body Left", "3/4 Body Right",
 ];
+const BODY_VIDEOS = ["Walking", "Turn 360", "Natural movement"];
 const GUIDELINES = [
   { icon: Sun, label: "Natural Lighting" },
   { icon: ImageIcon, label: "White Background" },
@@ -68,6 +69,7 @@ export default function TalentMyFacePage() {
   const [facePhotos, setFacePhotos] = useState<Record<string, string | null>>({});
   const [faceVideos, setFaceVideos] = useState<Record<string, string | null>>({});
   const [bodyPhotos, setBodyPhotos] = useState<Record<string, string | null>>({});
+  const [bodyVideos, setBodyVideos] = useState<Record<string, string | null>>({});
   const [identityVideo, setIdentityVideo] = useState<string | null>(null);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -135,12 +137,15 @@ export default function TalentMyFacePage() {
       const face_photo_urls = Object.values(facePhotos).filter((u): u is string => Boolean(u));
       const face_video_urls = Object.values(faceVideos).filter((u): u is string => Boolean(u));
       const body_photo_urls = Object.values(bodyPhotos).filter((u): u is string => Boolean(u));
+      const body_video_urls = Object.values(bodyVideos).filter((u): u is string => Boolean(u));
       const job = await submitAvatarJob({
         face_photo_count: faceCount,
         body_photo_count: bodyCount,
         face_photo_urls,
         face_video_urls,
-        body_photo_urls,
+        // Send body videos alongside body photos so the backend has a full
+        // dataset; both arrays are persisted in avatar_jobs.
+        body_photo_urls: [...body_photo_urls, ...body_video_urls],
         identity_video_url: identityVideo || undefined,
       });
       router.push(`/avatar-generating?jobId=${job.id}`);
@@ -505,6 +510,69 @@ export default function TalentMyFacePage() {
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center">
                             <Upload className="w-5 h-5 text-gray-700" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-white/90 text-center py-1.5">
+                        <span className="text-xs font-medium text-gray-800">{label}</span>
+                      </div>
+                    </>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Body Videos */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-semibold">Body Videos</h2>
+            <span className="text-sm text-gray-500">
+              {Object.values(bodyVideos).filter(Boolean).length}/{BODY_VIDEOS.length} uploaded
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">Short body motion clips.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {BODY_VIDEOS.map((label) => {
+              const url = bodyVideos[label];
+              const slotKey = `bodyVideo-${label}`;
+              const isUploading = uploadingSlot === slotKey;
+              const reference = REFERENCE_IMAGES[label];
+              return (
+                <label
+                  key={label}
+                  className={`aspect-square rounded-2xl border-2 border-dashed transition-colors cursor-pointer flex flex-col shadow-sm relative overflow-hidden group ${
+                    url ? "border-green-500" : "border-gray-200 hover:border-gray-400"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    disabled={isUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadSlot(slotKey, file, (url) => setBodyVideos((p) => ({ ...p, [label]: url })));
+                    }}
+                  />
+                  {url ? (
+                    <>
+                      <video src={url} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
+                      <CheckCircle className="absolute top-2 right-2 w-5 h-5 text-green-600 bg-white rounded-full" />
+                    </>
+                  ) : (
+                    <>
+                      {reference && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={reference} alt={`${label} reference`} className="absolute inset-0 w-full h-full object-cover grayscale opacity-60" />
+                      )}
+                      <div className="absolute inset-0 bg-white/60 group-hover:bg-white/40 transition-colors flex flex-col items-center justify-center gap-2">
+                        {isUploading ? (
+                          <Loader2 className="w-8 h-8 animate-spin text-gray-700" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-black/70 flex items-center justify-center">
+                            <Play className="w-5 h-5 text-white ml-0.5" />
                           </div>
                         )}
                       </div>
