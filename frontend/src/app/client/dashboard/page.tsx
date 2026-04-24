@@ -381,7 +381,9 @@ export default function ClientDashboardPage() {
       }))
     : DEMO_SPENDING_DATA;
 
-  if (authLoading) {
+  // Hold the spinner while the redirect useEffect is about to fire — prevents
+  // a flash of empty dashboard when the user isn't authenticated as a client.
+  if (authLoading || !user || (user.role !== "client" && user.role !== "brand")) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />

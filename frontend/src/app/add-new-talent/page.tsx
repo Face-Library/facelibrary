@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Upload, Sun, Image as ImageIcon, Sparkles, Eye, Wind, Glasses, Smile } from "lucide-react";
+import { ArrowLeft, Upload, Sun, Image as ImageIcon, Sparkles, Eye, Wind, Glasses, Smile, Play } from "lucide-react";
+import { FIGMA_REFERENCE_IMAGES } from "@/lib/figma-reference-images";
 
 const faceDigits = [
   "Front", "Left Profile", "Right Profile", "3/4 Left",
@@ -132,19 +133,34 @@ export default function AddNewTalentPage() {
           <div>
             <h2 className="text-xl font-semibold mb-6">Face Digits</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {faceDigits.map((label) => (
-                <div
-                  key={label}
-                  className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
-                >
-                  <div className="aspect-square overflow-hidden flex items-center justify-center bg-gray-50">
-                    <Upload className="w-10 h-10 text-gray-400" />
+              {faceDigits.map((label) => {
+                const reference = FIGMA_REFERENCE_IMAGES[label];
+                return (
+                  <div
+                    key={label}
+                    className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer group relative"
+                  >
+                    <div className="aspect-square overflow-hidden relative">
+                      {reference && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={reference}
+                          alt={`${label} reference`}
+                          className="absolute inset-0 w-full h-full object-cover grayscale opacity-70"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-white/50 group-hover:bg-white/30 transition-colors flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center">
+                          <Upload className="w-5 h-5 text-gray-700" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <p className="text-sm font-medium text-gray-700">{label}</p>
+                    </div>
                   </div>
-                  <div className="p-3 text-center">
-                    <p className="text-sm font-medium text-gray-700">{label}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -152,19 +168,34 @@ export default function AddNewTalentPage() {
           <div>
             <h2 className="text-xl font-semibold mb-6">Body Digits</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {bodyDigits.map((label) => (
-                <div
-                  key={label}
-                  className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
-                >
-                  <div className="aspect-square overflow-hidden flex items-center justify-center bg-gray-50">
-                    <Upload className="w-10 h-10 text-gray-400" />
+              {bodyDigits.map((label) => {
+                const reference = FIGMA_REFERENCE_IMAGES[label];
+                return (
+                  <div
+                    key={label}
+                    className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer group relative"
+                  >
+                    <div className="aspect-square overflow-hidden relative">
+                      {reference && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={reference}
+                          alt={`${label} reference`}
+                          className="absolute inset-0 w-full h-full object-cover grayscale opacity-70"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-white/50 group-hover:bg-white/30 transition-colors flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center">
+                          <Upload className="w-5 h-5 text-gray-700" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 text-center">
+                      <p className="text-sm font-medium text-gray-700">{label}</p>
+                    </div>
                   </div>
-                  <div className="p-3 text-center">
-                    <p className="text-sm font-medium text-gray-700">{label}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -172,13 +203,23 @@ export default function AddNewTalentPage() {
           <div>
             <h2 className="text-xl font-semibold mb-6">Identity Video</h2>
             <div className="max-w-2xl">
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer">
-                <div className="aspect-video flex flex-col items-center justify-center bg-gray-50 p-8">
-                  <Upload className="w-12 h-12 text-gray-400 mb-4" />
-                  <p className="text-base font-semibold text-gray-700 mb-2">Upload Identity Video</p>
-                  <p className="text-sm text-gray-500 text-center">
-                    Record a short video confirming identity
-                  </p>
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:border-gray-300 transition-colors cursor-pointer group relative">
+                <div className="aspect-video flex flex-col items-center justify-center relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={FIGMA_REFERENCE_IMAGES["Identity Video"]}
+                    alt="Identity video reference"
+                    className="absolute inset-0 w-full h-full object-cover grayscale opacity-70"
+                  />
+                  <div className="absolute inset-0 bg-white/60 group-hover:bg-white/40 transition-colors flex flex-col items-center justify-center gap-3 p-8">
+                    <div className="w-16 h-16 rounded-full bg-black/80 flex items-center justify-center">
+                      <Play className="w-7 h-7 text-white ml-1" />
+                    </div>
+                    <p className="text-base font-semibold text-gray-900">Upload Identity Video</p>
+                    <p className="text-sm text-gray-700 text-center">
+                      Record a short video confirming identity
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

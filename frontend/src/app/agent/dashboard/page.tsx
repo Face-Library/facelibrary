@@ -199,7 +199,7 @@ export default function AgentDashboardPage() {
     router.push("/");
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "agent") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />

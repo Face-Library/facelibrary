@@ -289,9 +289,13 @@ export default function TalentDashboardPage() {
     </button>
   );
 
-  /* --- Loading state --- */
+  /* --- Loading state ---
+   * Also hold the spinner while the redirect useEffect above is about to
+   * fire (when the user isn't authenticated as a talent). Without this
+   * guard, the full dashboard briefly renders with user=null, producing
+   * a flash of empty/broken UI before /login takes over. */
 
-  if (authLoading) {
+  if (authLoading || !user || user.role !== "talent") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
