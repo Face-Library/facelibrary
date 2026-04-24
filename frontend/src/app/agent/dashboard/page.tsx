@@ -44,6 +44,7 @@ import {
   approveLicense,
   postChat,
   getActivityFeed,
+  downloadAgencyStatement,
   type ChatMessage,
   type ActivityItem,
 } from "@/lib/api";
@@ -682,10 +683,28 @@ export default function AgentDashboardPage() {
               </div>
               <Link
                 href="/agent/billing"
-                className="block text-center text-xs bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition-colors"
+                className="block text-center text-xs bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition-colors mb-2"
               >
                 View Payment Breakdown →
               </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={async () => {
+                    if (!profile?.id) return;
+                    try { await downloadAgencyStatement(profile.id); }
+                    catch (e) { console.error(e); }
+                  }}
+                  className="text-xs border border-gray-300 text-gray-700 py-2 rounded-lg hover:border-black hover:text-black transition-colors"
+                >
+                  Download Statement
+                </button>
+                <Link
+                  href="/agent/billing#bank-account"
+                  className="text-center text-xs border border-gray-300 text-gray-700 py-2 rounded-lg hover:border-black hover:text-black transition-colors"
+                >
+                  Manage Payout Details
+                </Link>
+              </div>
             </div>
 
             {/* AI Agent Assistant */}
@@ -794,15 +813,29 @@ export default function AgentDashboardPage() {
                   })}
                 </ul>
               )}
+              <Link
+                href="/messages"
+                className="mt-4 block text-center text-xs text-gray-600 hover:text-black font-medium"
+              >
+                View All Notifications →
+              </Link>
             </div>
 
             {/* Billing & Payouts shortcut */}
-            <Link
-              href="/agent/billing"
-              className="block text-center text-sm bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-colors"
-            >
-              Billing &amp; Payouts →
-            </Link>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/agent/billing"
+                className="block text-center text-sm bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-colors"
+              >
+                Billing &amp; Payouts →
+              </Link>
+              <Link
+                href="/agent/billing#payout-history"
+                className="block text-center text-sm border border-gray-300 text-gray-700 py-3 rounded-xl hover:border-black hover:text-black transition-colors"
+              >
+                View All Payouts →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

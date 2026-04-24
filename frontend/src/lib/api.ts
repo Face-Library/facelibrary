@@ -279,6 +279,53 @@ export const getContractStatus = (licenseId: number): Promise<ContractStatus> =>
 export const signContract = (licenseId: number) =>
   fetchAPI(`/api/licensing/${licenseId}/sign`, { method: "POST" });
 
+// Identity certificate download (text/plain). Returns a blob-friendly URL.
+export function identityCertificateUrl(talentId: number): string {
+  return `${API_BASE}/api/talent/${talentId}/certificate`;
+}
+export async function downloadIdentityCertificate(talentId: number): Promise<void> {
+  const token = getToken();
+  const res = await fetch(identityCertificateUrl(talentId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`Certificate download failed (${res.status})`);
+  const blob = await res.blob();
+  const filename = `FL-${String(talentId).padStart(6, "0")}-certificate.txt`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+
+// Send generated contract to the talent (creates/opens DM + flips status).
+export const sendContractToTalent = (licenseId: number): Promise<{ ok: boolean; conversation_id: number; status: string }> =>
+  fetchAPI(`/api/licensing/${licenseId}/send-to-talent`, { method: "POST" });
+
+// Agency earnings statement CSV download.
+export async function downloadAgencyStatement(agentId: number): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/agent/${agentId}/statement.csv`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`Statement download failed (${res.status})`);
+  const blob = await res.blob();
+  const filename = `agency-${agentId}-statement.csv`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+
+// Counter-propose license terms (talent / linked agent).
+export const editLicenseTerms = (
+  licenseId: number,
+  data: { desired_duration_days?: number; desired_regions?: string; proposed_price?: number; license_type?: string }
+) =>
+  fetchAPI(`/api/licensing/${licenseId}/terms`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
 export const getAvatarJob = (jobId: number) =>
   fetchAPI(`/api/talent/avatar/${jobId}`);
 

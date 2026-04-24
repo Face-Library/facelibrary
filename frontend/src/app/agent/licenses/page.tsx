@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Loader2, Inbox, CheckCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, LogOut, User, Loader2, Inbox, CheckCircle, MessageSquare, Edit3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { getAgent, getAgentRequests, approveLicense, createConversation } from "@/lib/api";
+import { getAgent, getAgentRequests, approveLicense, createConversation, editLicenseTerms } from "@/lib/api";
 
 const NAV_TABS = [
   { label: "Dashboard", href: "/agent/dashboard" },
@@ -66,6 +66,9 @@ export default function AgentLicensesPage() {
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingRow, setEditingRow] = useState<RequestRow | null>(null);
+  const [editForm, setEditForm] = useState({ desired_duration_days: "", desired_regions: "", proposed_price: "" });
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "agent")) { router.push("/login"); return; }
@@ -101,6 +104,48 @@ export default function AgentLicensesPage() {
     try { await approveLicense(id, approved); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Action failed"); }
     finally { setActingId(null); }
+  }
+
+  function openEditTerms(row: RequestRow) {
+    setEditingRow(row);
+    setEditForm({
+      desired_duration_days: row.desired_duration_days?.toString() ?? "",
+      desired_regions: row.desired_regions ?? "",
+      proposed_price: row.proposed_price?.toString() ?? "",
+    });
+  }
+
+  async function handleEditTermsSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingRow) return;
+    setEditSaving(true);
+    try {
+      const updates: Record<string, number | string> = {};
+      if (editForm.desired_duration_days && Number(editForm.desired_duration_days) !== editingRow.desired_duration_days) {
+        updates.desired_duration_days = Number(editForm.desired_duration_days);
+      }
+      if (editForm.desired_regions && editForm.desired_regions !== editingRow.desired_regions) {
+        updates.desired_regions = editForm.desired_regions;
+      }
+      if (editForm.proposed_price && Number(editForm.proposed_price) !== editingRow.proposed_price) {
+        updates.proposed_price = Number(editForm.proposed_price);
+      }
+      if (Object.keys(updates).length === 0) {
+        setEditingRow(null);
+        return;
+      }
+      await editLicenseTerms(editingRow.id, updates as {
+        desired_duration_days?: number;
+        desired_regions?: string;
+        proposed_price?: number;
+      });
+      await load();
+      setEditingRow(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update terms");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleNegotiate(row: RequestRow) {
@@ -234,6 +279,13 @@ export default function AgentLicensesPage() {
                             Reject
                           </button>
                           <button
+                            onClick={() => openEditTerms(row)}
+                            disabled={actingId === row.id}
+                            className="flex-1 border border-gray-300 text-gray-700 py-2.5 px-4 rounded-lg text-sm font-medium hover:border-gray-900 hover:text-black transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                          >
+                            <Edit3 className="w-4 h-4" /> Edit Terms
+                          </button>
+                          <button
                             onClick={() => handleNegotiate(row)}
                             disabled={actingId === row.id || !row.client_user_id}
                             className="flex-1 border border-gray-300 text-gray-700 py-2.5 px-4 rounded-lg text-sm font-medium hover:border-gray-900 hover:text-black transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
@@ -281,6 +333,80 @@ export default function AgentLicensesPage() {
           </div>
         )}
       </main>
+
+      {/* Edit Terms modal — real PUT /api/licensing/{id}/terms */}
+      {editingRow && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingRow(null)}>
+          <div
+            className="bg-white rounded-xl max-w-lg w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Edit Terms — License #{editingRow.id}</h2>
+              <button
+                onClick={() => setEditingRow(null)}
+                className="text-gray-400 hover:text-black"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Counter-propose the brand&apos;s terms. Changes are audit-logged
+              and the brand sees the update on their side.
+            </p>
+            <form onSubmit={handleEditTermsSave} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1">Duration (days)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={editForm.desired_duration_days}
+                  onChange={(e) => setEditForm((f) => ({ ...f, desired_duration_days: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Regions</label>
+                <input
+                  type="text"
+                  value={editForm.desired_regions}
+                  onChange={(e) => setEditForm((f) => ({ ...f, desired_regions: e.target.value }))}
+                  placeholder="Global, UK, Europe, …"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Proposed price (£)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={editForm.proposed_price}
+                  onChange={(e) => setEditForm((f) => ({ ...f, proposed_price: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRow(null)}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg text-sm hover:border-black hover:text-black transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="flex-1 bg-black text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                >
+                  {editSaving ? "Saving…" : "Save Counter-Offer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

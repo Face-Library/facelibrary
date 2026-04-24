@@ -354,20 +354,20 @@ export default function TalentBillingPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium mb-1">Account Number</label>
+                        <label className="block text-xs font-medium mb-1">IBAN / Account Number</label>
                         <input
                           value={bankForm.account_number}
                           onChange={(e) => setBankForm((f) => ({ ...f, account_number: e.target.value }))}
-                          placeholder="Stored as last 4"
+                          placeholder="GB82 WEST … or 12345678"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium mb-1">Sort Code</label>
+                        <label className="block text-xs font-medium mb-1">SWIFT / BIC</label>
                         <input
                           value={bankForm.sort_code}
                           onChange={(e) => setBankForm((f) => ({ ...f, sort_code: e.target.value }))}
-                          placeholder="00-00-00"
+                          placeholder="BARCGB22 or 20-00-00"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
                         />
                       </div>

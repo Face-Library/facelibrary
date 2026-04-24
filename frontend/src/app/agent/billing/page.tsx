@@ -269,35 +269,55 @@ export default function AgentBillingPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">
-                  Account number
+                  IBAN / Account Number
                   <span className="text-gray-400 font-normal"> (stored as last 4)</span>
                 </label>
                 <input
-                  value={bankForm.account_number}
-                  onChange={(e) =>
-                    setBankForm((f) => ({ ...f, account_number: e.target.value }))
-                  }
+                  value={bankForm.iban || bankForm.account_number}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Heuristic: IBAN starts with 2 letters; everything else = account number.
+                    if (/^[A-Za-z]{2}/.test(v)) {
+                      setBankForm((f) => ({ ...f, iban: v, account_number: "" }));
+                    } else {
+                      setBankForm((f) => ({ ...f, account_number: v, iban: "" }));
+                    }
+                  }}
+                  placeholder="GB82 WEST 1234 5698 7654 32   or   12345678"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Sort code</label>
+                <label className="block text-xs font-medium mb-1">SWIFT / BIC</label>
                 <input
                   value={bankForm.sort_code}
                   onChange={(e) => setBankForm((f) => ({ ...f, sort_code: e.target.value }))}
-                  placeholder="00-00-00"
+                  placeholder="BARCGB22 or 20-00-00"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
                 />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  SWIFT for international; UK sort code accepted.
+                </p>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium mb-1">
-                  IBAN <span className="text-gray-400 font-normal">(for non-UK accounts)</span>
-                </label>
-                <input
-                  value={bankForm.iban}
-                  onChange={(e) => setBankForm((f) => ({ ...f, iban: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                />
+                <label className="block text-xs font-medium mb-1">Country</label>
+                <select
+                  value={bankForm.country}
+                  onChange={(e) => setBankForm((f) => ({ ...f, country: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                >
+                  <option value="GB">United Kingdom</option>
+                  <option value="US">United States</option>
+                  <option value="DE">Germany</option>
+                  <option value="FR">France</option>
+                  <option value="ES">Spain</option>
+                  <option value="IT">Italy</option>
+                  <option value="NL">Netherlands</option>
+                  <option value="IE">Ireland</option>
+                  <option value="AU">Australia</option>
+                  <option value="CA">Canada</option>
+                  <option value="IN">India</option>
+                </select>
               </div>
               {bankError && (
                 <div className="md:col-span-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">

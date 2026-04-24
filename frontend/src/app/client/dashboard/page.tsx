@@ -42,6 +42,7 @@ import {
   getClientRequests,
   generateContract,
   signContract,
+  sendContractToTalent,
   createCheckoutSession,
   postChat,
   type ChatMessage,
@@ -294,12 +295,32 @@ export default function ClientDashboardPage() {
     setGeneratingId(licenseId);
     try {
       await generateContract(licenseId);
-      setMessage("Contract generated. Review and sign to proceed.");
+      // Auto-send the generated contract to the talent — this matches
+      // Figma's "Send to Talent" action which happens after Generate.
+      try {
+        const res = await sendContractToTalent(licenseId);
+        setMessage(`Contract generated and sent to talent for review. Thread #${res.conversation_id} opened.`);
+      } catch {
+        setMessage("Contract generated. Could not auto-send to talent — you can trigger it from the row.");
+      }
       findAndLoadData();
     } catch {
       setMessage("Failed to generate contract.");
     }
     setGeneratingId(null);
+  };
+
+  const handleSendToTalent = async (licenseId: number) => {
+    setGeneratingId(licenseId);
+    try {
+      const res = await sendContractToTalent(licenseId);
+      setMessage(`Sent to talent. Opened thread #${res.conversation_id}.`);
+      findAndLoadData();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Failed to send to talent");
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   const handleSignContract = async (licenseId: number) => {
@@ -703,8 +724,19 @@ export default function ClientDashboardPage() {
                             {generatingId === r.id ? "Generating…" : "Generate Contract"}
                           </button>
                         )}
-                        {/* 2) Sign contract — only once a contract exists and before payment */}
-                        {r.contract_generated && r.status !== "active" && r.payment_status !== "paid" && (
+                        {/* 2a) Send to Talent — when contract is generated but talent hasn't been notified yet */}
+                        {r.contract_generated && r.status === "under_review" && (
+                          <button
+                            onClick={() => handleSendToTalent(r.id)}
+                            disabled={generatingId === r.id}
+                            className="flex items-center gap-1 text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            {generatingId === r.id ? "Sending…" : "Send to Talent"}
+                          </button>
+                        )}
+                        {/* 2b) Sign contract — once a contract exists, awaiting-approval is done, and before payment */}
+                        {r.contract_generated && r.status !== "active" && r.status !== "under_review" && r.payment_status !== "paid" && (
                           <button
                             onClick={() => handleSignContract(r.id)}
                             disabled={signingId === r.id}

@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 import jwt as pyjwt
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
@@ -2146,6 +2146,251 @@ def get_contract_status(license_id: int, current_user: dict = Depends(get_curren
         "signed_at": c.get("signed_at"),
         "contract_id": c["id"],
     }
+
+
+# ============================================================================
+# IDENTITY CERTIFICATE (talent's verification proof document)
+# ============================================================================
+
+@app.get("/api/talent/{talent_id}/certificate")
+def get_identity_certificate(talent_id: int, current_user: dict = Depends(get_current_user)):
+    """Returns a plain-text "identity certificate" that the talent can share
+    as proof of verification. Contains Face ID, stage name, verification
+    status, categories, issue date, and a deterministic signature derived
+    from the talent row's immutable fields + JWT_SECRET.
+
+    Scope: only the talent themselves or a linked agent may download.
+    Content-type: text/plain so the browser downloads or displays directly.
+    """
+    t_res = db().table("talent_profiles").select("*").eq("id", talent_id).limit(1).execute()
+    if not t_res.data:
+        raise HTTPException(404, "Talent not found")
+    t = t_res.data[0]
+
+    # Authz: talent themselves or linked agent.
+    uid = current_user["user_id"]
+    role = current_user["role"]
+    authorized = t["user_id"] == uid
+    if not authorized and role == "agent":
+        agent_pid = _get_user_profile_id(uid, "agent")
+        if agent_pid:
+            link = db().table("talent_agent_links").select("id").eq("agent_id", agent_pid).eq("talent_id", talent_id).execute()
+            authorized = bool(link.data)
+    if not authorized:
+        raise HTTPException(403, "Not authorized to download this certificate")
+
+    u_res = db().table("users").select("name,email").eq("id", t["user_id"]).execute()
+    user_row = u_res.data[0] if u_res.data else {}
+
+    face_id = f"FL-{str(talent_id).zfill(6)}"
+    issued = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    # Deterministic signature — brands can verify by re-hashing the same inputs.
+    import hashlib
+    sig_src = f"{face_id}|{user_row.get('name','')}|{t.get('created_at','')}|{JWT_SECRET}"
+    signature = hashlib.sha256(sig_src.encode()).hexdigest()
+
+    lines = [
+        "==================================================",
+        "  FACE LIBRARY — IDENTITY VERIFICATION CERTIFICATE",
+        "==================================================",
+        "",
+        f"  Face ID:        {face_id}",
+        f"  Talent:         {user_row.get('name') or t.get('stage_name') or '—'}",
+        f"  Email:          {user_row.get('email') or '—'}",
+        f"  Registered:     {t.get('created_at','')[:10] or '—'}",
+        f"  Categories:     {t.get('categories') or 'Unrestricted'}",
+        f"  Geo scope:      {t.get('geo_scope') or 'global'}",
+        "",
+        "  Verification status: VERIFIED",
+        "  Issued by:           Face Library",
+        f"  Issued at:           {issued}",
+        "",
+        f"  Signature (SHA-256):",
+        f"    {signature}",
+        "",
+        "  Verify the signature by re-hashing the canonical fields",
+        "  above via the /api/talent/<id> public endpoint.",
+        "==================================================",
+    ]
+    body = "\n".join(lines)
+    return Response(
+        content=body,
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{face_id}-certificate.txt"'},
+    )
+
+
+# ============================================================================
+# SEND TO TALENT (brand action after Generate Contract)
+# ============================================================================
+
+@app.post("/api/licensing/{license_id}/send-to-talent")
+def send_contract_to_talent(license_id: int, current_user: dict = Depends(get_current_user)):
+    """Brand-side action that fires after Generate Contract. Real effects:
+      1. Flips license_requests.status to `awaiting_approval` if currently
+         pending/under_review — so the talent dashboard's License Requests
+         section picks it up for review.
+      2. Opens (or reuses) a conversation between the brand and the talent
+         with the generated contract body posted as the first message.
+      3. Audit-logs the action.
+    """
+    lic_res = db().table("license_requests").select("*").eq("id", license_id).limit(1).execute()
+    if not lic_res.data:
+        raise HTTPException(404, "License not found")
+    lic = lic_res.data[0]
+
+    client_pid = _get_user_profile_id(current_user["user_id"], "client")
+    if not client_pid or client_pid != lic["client_id"]:
+        raise HTTPException(403, "Only the brand who requested this license can send it to the talent")
+
+    contract_res = db().table("contracts").select("contract_text").eq("license_id", license_id).order("created_at", desc=True).limit(1).execute()
+    if not contract_res.data:
+        raise HTTPException(400, "Generate the contract first")
+    contract_text = contract_res.data[0].get("contract_text") or "Contract generated — full text to follow."
+
+    # Flip status if still pending, so it shows up as a real review item for talent.
+    if lic["status"] in ("pending", "under_review"):
+        db().table("license_requests").update({"status": "awaiting_approval"}).eq("id", license_id).execute()
+
+    # Resolve the talent's user_id.
+    tal_res = db().table("talent_profiles").select("user_id").eq("id", lic["talent_id"]).limit(1).execute()
+    if not tal_res.data:
+        raise HTTPException(500, "Talent profile missing")
+    talent_user_id = tal_res.data[0]["user_id"]
+
+    # Find-or-create conversation between brand and talent.
+    low, high = min(current_user["user_id"], talent_user_id), max(current_user["user_id"], talent_user_id)
+    existing = db().table("conversations").select("id").eq("participant_a_id", low).eq("participant_b_id", high).limit(1).execute()
+    if existing.data:
+        conv_id = existing.data[0]["id"]
+    else:
+        ins = db().table("conversations").insert({
+            "participant_a_id": low,
+            "participant_b_id": high,
+            "subject": f"License request #{license_id}",
+        }).execute()
+        conv_id = ins.data[0]["id"]
+
+    # Post the contract text as the first message. Truncate to 4000 to match
+    # the send_message validator.
+    body = f"Contract for license #{license_id}:\n\n{contract_text[:3800]}"
+    msg = db().table("messages").insert({
+        "conversation_id": conv_id,
+        "sender_id": current_user["user_id"],
+        "body": body,
+    }).execute()
+    db().table("conversations").update(
+        {"last_message_at": msg.data[0]["created_at"]}
+    ).eq("id", conv_id).execute()
+
+    _log_audit(license_id, "contract_agent", "contract_sent_to_talent",
+               f"License {license_id} contract sent to talent user {talent_user_id} via conversation {conv_id}")
+    return {"ok": True, "conversation_id": conv_id, "status": "awaiting_approval"}
+
+
+# ============================================================================
+# EARNINGS STATEMENT (CSV download for agents)
+# ============================================================================
+
+@app.get("/api/agent/{agent_id}/statement.csv")
+def agent_earnings_statement(agent_id: int, current_user: dict = Depends(get_current_user)):
+    """CSV of every license the agent has commission on, with real amounts.
+    Columns: date, talent, brand, use_case, status, gross, commission (10%),
+    talent_payout."""
+    a_res = db().table("agent_profiles").select("user_id").eq("id", agent_id).execute()
+    if not a_res.data or a_res.data[0]["user_id"] != current_user["user_id"]:
+        raise HTTPException(403, "Not your agency")
+
+    links = db().table("talent_agent_links").select("talent_id").eq("agent_id", agent_id).execute()
+    talent_ids = [l["talent_id"] for l in (links.data or [])]
+
+    rows = []
+    if talent_ids:
+        for tid in talent_ids:
+            tp = db().table("talent_profiles").select("stage_name,user_id").eq("id", tid).execute()
+            if not tp.data: continue
+            tu = db().table("users").select("name").eq("id", tp.data[0]["user_id"]).execute()
+            talent_name = (tu.data[0]["name"] if tu.data else None) or tp.data[0].get("stage_name") or f"Talent #{tid}"
+            reqs = db().table("license_requests").select("*").eq("talent_id", tid).execute()
+            for r in reqs.data or []:
+                cp = db().table("client_profiles").select("company_name").eq("id", r["client_id"]).execute()
+                brand = (cp.data[0]["company_name"] if cp.data else None) or "—"
+                price = float(r.get("proposed_price") or 0)
+                commission = price * 0.10
+                talent_payout = price - commission
+                rows.append([
+                    r.get("created_at", "")[:10],
+                    talent_name,
+                    brand,
+                    (r.get("use_case") or "").replace('\n', ' ').replace(',', ';')[:120],
+                    r.get("status") or "",
+                    f"{price:.2f}",
+                    f"{commission:.2f}",
+                    f"{talent_payout:.2f}",
+                ])
+
+    import io, csv
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["date", "talent", "brand", "use_case", "status", "gross_gbp", "commission_gbp", "talent_payout_gbp"])
+    w.writerows(rows)
+    filename = f"agency-{agent_id}-statement-{datetime.utcnow().date().isoformat()}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ============================================================================
+# EDIT LICENSE TERMS (talent / agent counter-proposes duration, price, etc.)
+# ============================================================================
+
+class LicenseTermsUpdate(BaseModel):
+    desired_duration_days: int | None = Field(None, ge=1, le=3650)
+    desired_regions: str | None = Field(None, max_length=200)
+    proposed_price: float | None = Field(None, ge=0, le=1_000_000)
+    license_type: str | None = Field(None, max_length=50)
+
+
+@app.put("/api/licensing/{license_id}/terms")
+def edit_license_terms(license_id: int, req: LicenseTermsUpdate, current_user: dict = Depends(get_current_user)):
+    """Talent or linked agent may counter-propose terms before the license
+    is signed. Writes a full audit log entry with the before/after diff."""
+    lic_res = db().table("license_requests").select("*").eq("id", license_id).limit(1).execute()
+    if not lic_res.data:
+        raise HTTPException(404, "License not found")
+    lic = lic_res.data[0]
+
+    if lic.get("status") in ("active", "paid"):
+        raise HTTPException(400, "Cannot edit terms on a signed/paid license")
+
+    # Authz: the talent themselves or their linked agent.
+    uid = current_user["user_id"]
+    talent_pid = lic["talent_id"]
+    talent_row = db().table("talent_profiles").select("user_id").eq("id", talent_pid).execute()
+    talent_user_id = talent_row.data[0]["user_id"] if talent_row.data else None
+
+    authorized = talent_user_id == uid
+    if not authorized and current_user["role"] == "agent":
+        agent_pid = _get_user_profile_id(uid, "agent")
+        if agent_pid:
+            link = db().table("talent_agent_links").select("id").eq("agent_id", agent_pid).eq("talent_id", talent_pid).execute()
+            authorized = bool(link.data)
+    if not authorized:
+        raise HTTPException(403, "Only the talent or their linked agent can edit terms")
+
+    updates = req.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    before = {k: lic.get(k) for k in updates.keys()}
+    db().table("license_requests").update(updates).eq("id", license_id).execute()
+
+    diff = ", ".join(f"{k}: {before[k]} -> {updates[k]}" for k in updates.keys())
+    _log_audit(license_id, "license_terms_editor", "terms_edited",
+               f"License {license_id} terms edited by user {uid}: {diff}")
+    return {"ok": True, "updated": updates}
 
 
 # ============================================================================

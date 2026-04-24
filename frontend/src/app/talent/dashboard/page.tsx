@@ -34,6 +34,9 @@ import {
   getTalentRequests,
   approveLicense,
   getWatermarkByTalent,
+  downloadIdentityCertificate,
+  requestPayout,
+  getEarnings,
 } from "@/lib/api";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
 
@@ -135,6 +138,12 @@ export default function TalentDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [earnings, setEarnings] = useState<{ available_balance: number; paid_out: number; pending_payout: number } | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawMsg, setWithdrawMsg] = useState<string | null>(null);
+  const [certDownloading, setCertDownloading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [hasPaymentMethod, setHasPaymentMethod] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState({
     accountNumber: "****1234",
@@ -245,6 +254,63 @@ export default function TalentDashboardPage() {
       if (profileId) loadData(profileId);
     } catch {
       setMessage("Action failed. Please try again.");
+    }
+  };
+
+  // Load earnings so the inline Billing & Payouts card shows real balance.
+  useEffect(() => {
+    if (user && user.role === "talent") {
+      getEarnings().then(setEarnings).catch(() => setEarnings(null));
+    }
+  }, [user]);
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(withdrawAmount);
+    if (!amt || amt <= 0) { setWithdrawMsg("Enter a valid amount"); return; }
+    if (earnings && amt > earnings.available_balance) {
+      setWithdrawMsg(`Max available: £${earnings.available_balance.toLocaleString()}`);
+      return;
+    }
+    setWithdrawing(true);
+    setWithdrawMsg(null);
+    try {
+      await requestPayout({ amount: amt });
+      setWithdrawAmount("");
+      setWithdrawMsg("Withdrawal requested. Funds in 3-5 business days.");
+      // Refresh balance
+      const fresh = await getEarnings().catch(() => null);
+      if (fresh) setEarnings(fresh);
+    } catch (err) {
+      setWithdrawMsg(err instanceof Error ? err.message : "Withdrawal failed");
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    const pid = profile?.id ?? user?.profile_id;
+    if (!pid) return;
+    setCertDownloading(true);
+    try {
+      await downloadIdentityCertificate(pid);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setCertDownloading(false);
+    }
+  };
+
+  const handleShareProfile = async () => {
+    const pid = profile?.id ?? user?.profile_id;
+    if (!pid || typeof window === "undefined") return;
+    const url = `${window.location.origin}/talent-profile/${pid}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      setMessage("Could not copy profile link");
     }
   };
 
@@ -510,6 +576,13 @@ export default function TalentDashboardPage() {
                 >
                   <Upload className="w-3.5 h-3.5" /> Upload Images
                 </Link>
+                <button
+                  onClick={handleShareProfile}
+                  className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-900 py-2 px-4 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {shareCopied ? "Link copied!" : "Share Profile"}
+                </button>
               </div>
 
               {/* Connected Accounts */}
@@ -981,7 +1054,18 @@ export default function TalentDashboardPage() {
                     Issued by Face Library &bull; UK GDPR Compliant
                   </p>
                 </div>
-              ) : (
+              ) : null}
+              {profile && (
+                <button
+                  onClick={handleDownloadCertificate}
+                  disabled={certDownloading}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 bg-black text-white py-2 rounded-lg text-xs hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {certDownloading ? "Preparing…" : "Download Certificate"}
+                </button>
+              )}
+              {!profile && (
                 <div className="rounded-lg border-2 border-dashed border-gray-200 p-6 flex flex-col items-center justify-center text-center">
                   <Shield className="w-8 h-8 text-gray-400 mb-2" />
                   <p className="text-xs text-gray-500">
@@ -1021,6 +1105,53 @@ export default function TalentDashboardPage() {
               >
                 View Earnings &amp; Payouts →
               </Link>
+            </div>
+
+            {/* Billing & Payouts (Figma right-col card with inline Withdraw) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                Billing &amp; Payouts
+              </h3>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 mb-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+                  Available Balance
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  £{(earnings?.available_balance ?? 0).toLocaleString()}
+                </p>
+                {(earnings?.pending_payout ?? 0) > 0 && (
+                  <p className="text-xs text-green-600 mt-1">
+                    +£{(earnings?.pending_payout ?? 0).toLocaleString()} pending
+                  </p>
+                )}
+              </div>
+              <form onSubmit={handleWithdraw} className="space-y-2">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">£</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={earnings?.available_balance ?? undefined}
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={withdrawing || !(earnings?.available_balance ?? 0)}
+                  className="w-full bg-green-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {withdrawing ? "Requesting…" : "Withdraw Funds"}
+                </button>
+                {withdrawMsg && (
+                  <p className={`text-[11px] ${withdrawMsg.includes("requested") ? "text-green-600" : "text-red-600"}`}>
+                    {withdrawMsg}
+                  </p>
+                )}
+              </form>
             </div>
           </div>
         </div>
