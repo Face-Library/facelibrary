@@ -312,11 +312,11 @@ export default function AgentDashboardPage() {
               </div>
             </div>
 
-            {/* Managed Talents */}
+            {/* Your Talents (Figma label) */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900">
-                  Managed Talents
+                  Your Talents
                 </h3>
                 <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                   {managedTalents.length}
@@ -421,10 +421,10 @@ export default function AgentDashboardPage() {
               </div>
             )}
 
-            {/* Active Requests */}
+            {/* License Requests (Figma center col) */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                Active Requests
+                License Requests
               </h3>
               {requests.length === 0 ? (
                 <p className="text-sm text-gray-500">No requests yet.</p>
@@ -597,6 +597,42 @@ export default function AgentDashboardPage() {
 
           {/* ===== RIGHT COLUMN (col-span-3) ===== */}
           <div className="col-span-12 lg:col-span-3 space-y-6">
+            {/* Agency Earnings (Figma right col top) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                Agency Earnings
+              </h3>
+              <div className="text-center py-3 rounded-lg bg-gray-50 border border-gray-200 mb-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {"£"}{totalRevenue.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Total Revenue</p>
+              </div>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Agent Commission (10%)</span>
+                  <span className="font-medium text-gray-900">
+                    {"£"}{Math.round(totalRevenue * 0.1).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Pending Payouts</span>
+                  <span className="font-medium text-amber-600">
+                    {"£"}
+                    {pendingRequests
+                      .reduce((sum, r) => sum + (r.proposed_price ?? 0), 0)
+                      .toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <Link
+                href="/agent/billing"
+                className="block text-center text-xs bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                View Payment Breakdown →
+              </Link>
+            </div>
+
             {/* AI Agent Assistant */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               <div className="bg-black text-white px-4 py-3">
@@ -654,36 +690,6 @@ export default function AgentDashboardPage() {
                       {action}
                     </button>
                   ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Revenue Overview */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                Revenue Overview
-              </h3>
-              <div className="text-center py-3 rounded-lg bg-gray-50 border border-gray-200 mb-4">
-                <p className="text-2xl font-bold text-gray-900">
-                  {"\u00A3"}{totalRevenue.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Total Revenue</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm py-1.5">
-                  <span className="text-gray-500">This Month</span>
-                  <span className="font-medium text-gray-900">
-                    {"\u00A3"}{Math.round(totalRevenue * 0.3).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm py-1.5">
-                  <span className="text-gray-500">Pending</span>
-                  <span className="font-medium text-amber-600">
-                    {"\u00A3"}
-                    {pendingRequests
-                      .reduce((sum, r) => sum + (r.proposed_price ?? 0), 0)
-                      .toLocaleString()}
-                  </span>
                 </div>
               </div>
             </div>
