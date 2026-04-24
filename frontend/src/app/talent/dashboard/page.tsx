@@ -354,6 +354,14 @@ export default function TalentDashboardPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* Page header (Figma: "Talent Dashboard") */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold">Talent Dashboard</h1>
+          <p className="text-gray-600 text-base mt-1">
+            Manage your profile, review license requests, and track earnings.
+          </p>
+        </div>
+
         {/* Toast message */}
         {message && (
           <div className="mb-6 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
@@ -548,6 +556,46 @@ export default function TalentDashboardPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Licensing Regions (inside LEFT col per Figma) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                Licensing Regions
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Choose where brands can license your likeness.
+              </p>
+              <div className="space-y-2">
+                {LICENSING_REGIONS.map((r) => {
+                  const checked = regions.includes(r);
+                  return (
+                    <label key={r} className="flex items-center gap-3 py-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setRegions((prev) => {
+                            if (r === "Global") return checked ? [] : ["Global"];
+                            return checked
+                              ? prev.filter((x) => x !== r)
+                              : [...prev.filter((x) => x !== "Global"), r];
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                      />
+                      <span className="text-sm text-gray-800">{r}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
             </div>
           </div>
 
@@ -807,6 +855,46 @@ export default function TalentDashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Category Permissions (inside CENTER col per Figma) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                Category Permissions
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Tick the campaign categories you&apos;re open to. Unchecked
+                categories are rejected automatically.
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {AD_CATEGORIES.map((cat) => {
+                  const checked = allowed.includes(cat);
+                  return (
+                    <label key={cat} className="flex items-center gap-2 py-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (checked) setAllowed(allowed.filter((c) => c !== cat));
+                          else {
+                            setAllowed([...allowed, cat]);
+                            setBlocked(blocked.filter((c) => c !== cat));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                      />
+                      <span className="text-sm text-gray-800">{cat}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
           </div>
 
           {/* ===== RIGHT COLUMN (col-span-3) ===== */}
@@ -937,99 +1025,6 @@ export default function TalentDashboardPage() {
           </div>
         </div>
 
-        {/* ===== Licensing Regions + Category Permissions (below grid) ===== */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Licensing Regions */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">
-              Licensing Regions
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Choose where brands can license your likeness. Selecting
-              &ldquo;Global&rdquo; overrides the rest.
-            </p>
-            <div className="space-y-2">
-              {LICENSING_REGIONS.map((r) => {
-                const checked = regions.includes(r);
-                return (
-                  <label
-                    key={r}
-                    className="flex items-center gap-3 py-1.5 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setRegions((prev) => {
-                          if (r === "Global") {
-                            return checked ? [] : ["Global"];
-                          }
-                          const next = checked
-                            ? prev.filter((x) => x !== r)
-                            : [...prev.filter((x) => x !== "Global"), r];
-                          return next;
-                        });
-                      }}
-                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
-                    />
-                    <span className="text-sm text-gray-800">{r}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save Regions"}
-            </button>
-          </div>
-
-          {/* Category Permissions */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">
-              Category Permissions
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Tick the campaign categories you&apos;re open to. Unchecked
-              categories will be rejected automatically.
-            </p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              {AD_CATEGORIES.map((cat) => {
-                const checked = allowed.includes(cat);
-                return (
-                  <label
-                    key={cat}
-                    className="flex items-center gap-2 py-1 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        if (checked) {
-                          setAllowed(allowed.filter((c) => c !== cat));
-                        } else {
-                          setAllowed([...allowed, cat]);
-                          setBlocked(blocked.filter((c) => c !== cat));
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
-                    />
-                    <span className="text-sm text-gray-800">{cat}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save Categories"}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Payment Method Modal */}

@@ -450,6 +450,12 @@ export default function ClientDashboardPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold">Brand Dashboard</h1>
+          <p className="text-gray-600 text-base mt-1">
+            Discover talent, manage offers, and track campaign spend.
+          </p>
+        </div>
         {/* Toast */}
         {message && (
           <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
