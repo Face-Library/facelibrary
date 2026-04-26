@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Eye, Copy, CheckCircle } from "lucide-react";
+import { FileText, Eye, Copy, CheckCircle } from "lucide-react";
 import { getLicenseTemplates } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import RoleAwareTopNav from "@/components/RoleAwareTopNav";
 
 interface Template {
   type: string;
@@ -70,22 +71,9 @@ export default function ContractTemplatesPage() {
       .finally(() => setLoading(false));
   }, [user, authLoading, router]);
 
-  const backPath =
-    user?.role === "agent" ? "/agent/dashboard" : user?.role === "talent" ? "/talent/dashboard" : "/client/dashboard";
-
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-black text-white flex items-center justify-center text-xs font-bold">FL</div>
-            <span className="font-semibold text-base tracking-wide">FACE LIBRARY</span>
-          </Link>
-          <Link href={backPath} className="flex items-center gap-2 text-sm text-gray-600 hover:text-black">
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-          </Link>
-        </div>
-      </header>
+      <RoleAwareTopNav active="Contracts" />
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="mb-10">

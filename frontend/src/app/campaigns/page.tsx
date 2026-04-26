@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { listLicenses } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import BrandTopNav from "@/components/BrandTopNav";
 
 interface LicenseItem {
   id: number;
@@ -15,6 +16,16 @@ interface LicenseItem {
   proposed_price: number | null;
   payment_status: string;
   created_at: string;
+  talent_name?: string;
+  desired_duration_days?: number;
+  content_type?: string;
+}
+
+function durationLabel(days?: number): string {
+  if (!days) return "—";
+  if (days >= 365) return `${Math.round(days / 365)} year${days >= 730 ? "s" : ""}`;
+  if (days >= 30) return `${Math.round(days / 30)} months`;
+  return `${days} days`;
 }
 
 const statusColor = (s: string) =>
@@ -42,20 +53,7 @@ export default function CampaignsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-black text-white flex items-center justify-center text-xs font-bold">FL</div>
-            <span className="font-semibold text-base tracking-wide">FACE LIBRARY</span>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/client/dashboard" className="text-sm text-gray-600 hover:text-black">Dashboard</Link>
-            <Link href="/discover-talent" className="text-sm text-gray-600 hover:text-black">Discover Talent</Link>
-            <span className="text-sm font-medium text-black border-b-2 border-black pb-1">Campaigns</span>
-          </nav>
-          <Link href="/client/dashboard" className="text-sm text-gray-600 hover:text-black">&larr; Back</Link>
-        </div>
-      </header>
+      <BrandTopNav active="Campaigns" />
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
@@ -82,25 +80,27 @@ export default function CampaignsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {licenses.map((lic) => (
-              <Link key={lic.id} href={`/license/${lic.id}`} className="bg-gray-50 rounded-xl p-6 cursor-pointer hover:shadow-lg transition-all border border-gray-200 hover:border-gray-300 block">
+              <Link key={lic.id} href={`/campaign/${lic.id}`} className="bg-gray-50 rounded-xl p-6 cursor-pointer hover:shadow-lg transition-all border border-gray-200 hover:border-gray-300 block">
                 <h3 className="text-lg font-semibold mb-4 text-gray-900 truncate">
-                  {lic.use_case || `License #${lic.id}`}
+                  {lic.use_case || `Campaign #${lic.id}`}
                 </h3>
                 <div className="space-y-2.5 mb-4">
                   <div className="flex">
-                    <span className="text-sm text-gray-600 w-28">Type:</span>
-                    <span className="text-sm font-medium capitalize">{(lic.license_type || "standard").replace(/_/g, " ")}</span>
+                    <span className="text-sm text-gray-600 w-32 flex-shrink-0">Selected Talent:</span>
+                    <span className="text-sm font-medium truncate">{lic.talent_name || "—"}</span>
                   </div>
                   <div className="flex">
-                    <span className="text-sm text-gray-600 w-28">Price:</span>
-                    <span className="text-sm font-medium">{lic.proposed_price ? `£${lic.proposed_price.toLocaleString()}` : "TBD"}</span>
+                    <span className="text-sm text-gray-600 w-32 flex-shrink-0">Usage:</span>
+                    <span className="text-sm font-medium capitalize">
+                      {(lic.content_type || lic.license_type || "standard").replace(/_/g, " ")}
+                    </span>
                   </div>
                   <div className="flex">
-                    <span className="text-sm text-gray-600 w-28">Payment:</span>
-                    <span className="text-sm font-medium capitalize">{lic.payment_status || "unpaid"}</span>
+                    <span className="text-sm text-gray-600 w-32 flex-shrink-0">Duration:</span>
+                    <span className="text-sm font-medium">{durationLabel(lic.desired_duration_days)}</span>
                   </div>
                   <div className="flex">
-                    <span className="text-sm text-gray-600 w-28">Status:</span>
+                    <span className="text-sm text-gray-600 w-32 flex-shrink-0">Status:</span>
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${statusColor(lic.status)}`}>
                       {lic.status.replace(/_/g, " ")}
                     </span>

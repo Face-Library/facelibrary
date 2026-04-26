@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle, MapPin, Shield } from "lucide-react";
+import { CheckCircle, MapPin, Shield } from "lucide-react";
 import { createLicenseRequest, getTalent, getTalentPricing, getTalentPortfolio } from "@/lib/api";
+import RoleAwareTopNav from "@/components/RoleAwareTopNav";
 
 // Hero placeholder used only when the talent hasn't uploaded a profile photo.
 // Portfolio images now come from /api/talents/:id/portfolio; no more fakes.
@@ -129,17 +130,7 @@ export default function TalentProfilePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-black text-white flex items-center justify-center text-xs font-bold">FL</div>
-            <span className="font-semibold text-base tracking-wide">FACE LIBRARY</span>
-          </Link>
-          <button onClick={() => router.push("/discover-talent")} className="flex items-center gap-2 text-sm text-gray-600 hover:text-black">
-            <ArrowLeft className="w-4 h-4" /> Back to Discovery
-          </button>
-        </div>
-      </header>
+      <RoleAwareTopNav active="Discover Talent" />
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="grid grid-cols-3 gap-8 mb-10">

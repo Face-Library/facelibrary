@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, ExternalLink, Eye, AlertTriangle, CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { listTalents, getTalentRequests, getWatermarkByTalent } from "@/lib/api";
+import { listTalents, getTalentRequests, getWatermarkByTalent, getTalent } from "@/lib/api";
 import TalentTopNav from "@/components/TalentTopNav";
 
 interface LicenseRow {
@@ -72,6 +72,7 @@ export default function TalentUsagePage() {
 
   const [active, setActive] = useState<LicenseRow[]>([]);
   const [watermarks, setWatermarks] = useState<WatermarkRow[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,15 +95,20 @@ export default function TalentUsagePage() {
           setActive([]); setWatermarks([]);
           return;
         }
-        const [licRes, wmRes] = await Promise.all([
+        const [licRes, wmRes, prof] = await Promise.all([
           getTalentRequests(profileId),
           getWatermarkByTalent(profileId).catch(() => []),
+          getTalent(profileId).catch(() => null),
         ]);
         const licRows = (licRes as LicenseRow[]).filter(
           (l) => l.status === "active" || l.status === "approved"
         );
         setActive(licRows);
         setWatermarks(Array.isArray(wmRes) ? (wmRes as WatermarkRow[]) : []);
+        if (prof) {
+          const p = prof as { photo_url?: string; image_url?: string; avatar_url?: string };
+          setPreviewImage(p.photo_url || p.image_url || p.avatar_url || null);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load usage");
       } finally {
@@ -185,8 +191,24 @@ export default function TalentUsagePage() {
                             </span>
                           )}
                         </div>
-                        <div className="mb-4 bg-gray-200 rounded-lg h-32 flex items-center justify-center text-gray-500 text-sm">
-                          Campaign preview
+                        <div className="mb-4 bg-gray-200 rounded-lg h-32 overflow-hidden relative">
+                          {previewImage ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={previewImage}
+                              alt="Campaign preview"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                              Campaign preview
+                            </div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="text-white/30 text-xs font-bold tracking-widest -rotate-12 select-none">
+                              FACE LIBRARY
+                            </span>
+                          </div>
                         </div>
                         <div className="space-y-2 text-sm mb-4">
                           <div className="flex justify-between">

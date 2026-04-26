@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Filter, ChevronDown } from "lucide-react";
 import { listTalents } from "@/lib/api";
+import BrandTopNav from "@/components/BrandTopNav";
 
 interface TalentItem {
   id: number;
@@ -108,20 +109,7 @@ export default function DiscoverTalentPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-black text-white flex items-center justify-center text-xs font-bold">FL</div>
-            <span className="font-semibold text-base tracking-wide">FACE LIBRARY</span>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/client/dashboard" className="text-sm text-gray-600 hover:text-black">Dashboard</Link>
-            <span className="text-sm font-medium text-black border-b-2 border-black pb-1">Discover Talent</span>
-            <Link href="/campaigns" className="text-sm text-gray-600 hover:text-black">Campaigns</Link>
-          </nav>
-          <Link href="/client/dashboard" className="text-sm text-gray-600 hover:text-black">&larr; Back to Dashboard</Link>
-        </div>
-      </header>
+      <BrandTopNav active="Discover Talent" />
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="mb-8">

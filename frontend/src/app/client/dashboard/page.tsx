@@ -16,11 +16,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  User,
   Send,
   FileText,
   CreditCard,
-  LogOut,
   MessageCircle,
   Eye,
   CheckCircle,
@@ -35,6 +33,7 @@ import * as XLSX from "xlsx";
 import { toast, Toaster } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
+import BrandTopNav from "@/components/BrandTopNav";
 import {
   listTalents,
   getClient,
@@ -81,14 +80,6 @@ interface ClientRequestItem {
 }
 
 /* ---------- Constants ---------- */
-
-const NAV_TABS: { label: string; href?: string }[] = [
-  { label: "Dashboard" },
-  { label: "Discover Talent", href: "/discover-talent" },
-  { label: "Campaigns", href: "/campaigns" },
-  { label: "Contracts", href: "/contract-templates" },
-  { label: "Messages", href: "/messages" },
-];
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-yellow-50 text-yellow-700",
@@ -168,7 +159,7 @@ const DEMO_SPEND_STATS = {
 /* ---------- Component ---------- */
 
 export default function ClientDashboardPage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [talents, setTalents] = useState<TalentListItem[]>([]);
@@ -179,7 +170,6 @@ export default function ClientDashboardPage() {
   const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [signingId, setSigningId] = useState<number | null>(null);
   const [payingId, setPayingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("Dashboard");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -354,11 +344,6 @@ export default function ClientDashboardPage() {
     );
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
-
   /* --- Derived stats --- */
   const realTotalSpent = requests
     .filter((r) => r.payment_status === "paid")
@@ -414,61 +399,7 @@ export default function ClientDashboardPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ===== Top Nav Bar ===== */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const active = activeTab === tab.label;
-                const common = `px-3 py-4 text-sm transition-colors relative ${
-                  active ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                }`;
-                const indicator = active && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
-                );
-                if (tab.href) {
-                  return (
-                    <Link key={tab.label} href={tab.href} className={common}>
-                      {tab.label}
-                      {indicator}
-                    </Link>
-                  );
-                }
-                return (
-                  <button
-                    key={tab.label}
-                    onClick={() => setActiveTab(tab.label)}
-                    className={common}
-                  >
-                    {tab.label}
-                    {indicator}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">
-              {user?.name || "---"}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <BrandTopNav active="Dashboard" />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         <div className="mb-8">

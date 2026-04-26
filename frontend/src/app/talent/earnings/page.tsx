@@ -209,6 +209,9 @@ export default function TalentBillingPage() {
         </div>
 
         <div className="space-y-8">
+          {/* Commission Agreement (Figma billing-page.md) */}
+          <CommissionAgreement userKey={user?.email || `user-${user?.user_id}`} />
+
           {/* Payment Overview — 4 tiles (Figma spec) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -567,6 +570,60 @@ export default function TalentBillingPage() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+
+/* ---------- Commission Agreement card ---------- */
+
+function CommissionAgreement({ userKey }: { userKey: string }) {
+  const storageKey = `face-library:commission-agreed:${userKey}`;
+  const [agreedAt, setAgreedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setAgreedAt(window.localStorage.getItem(storageKey));
+  }, [storageKey]);
+
+  const handleAgree = () => {
+    if (typeof window === "undefined") return;
+    const now = new Date().toISOString();
+    window.localStorage.setItem(storageKey, now);
+    setAgreedAt(now);
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <h2 className="text-lg font-semibold mb-2">Platform Commission</h2>
+      <p className="text-sm text-gray-700 mb-4 leading-relaxed">
+        Face Library operates on a commission-based model.{" "}
+        <span className="font-medium">A 10% commission is applied to all completed
+        licensing contracts.</span> The remaining 90% is paid out to you for every
+        approved license.
+      </p>
+      {agreedAt ? (
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <span className="font-medium">&#10004; Agreed</span>
+          <span className="text-xs text-green-600">
+            on {new Date(agreedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              onChange={handleAgree}
+              className="mt-1 w-4 h-4 border-gray-300 rounded focus:ring-2 focus:ring-black"
+            />
+            <span>I agree to the platform commission terms (10% on completed contracts).</span>
+          </label>
+          <a href="/terms" className="text-xs text-blue-600 hover:underline inline-block">
+            View Full Terms
+          </a>
+        </div>
+      )}
     </div>
   );
 }
