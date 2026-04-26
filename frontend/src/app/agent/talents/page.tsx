@@ -3,17 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Loader2, Users, CheckCircle, ExternalLink } from "lucide-react";
+import { User, Loader2, Users, CheckCircle, ExternalLink } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { getAgent, getAgentLinks, getTalent, listTalents } from "@/lib/api";
-
-const NAV_TABS = [
-  { label: "Dashboard", href: "/agent/dashboard" },
-  { label: "Talents", href: "/agent/talents" },
-  { label: "Licenses", href: "/agent/licenses" },
-  { label: "Revenue", href: "/agent/billing" },
-  { label: "Messages", href: "/messages" },
-];
+import AgentTopNav from "@/components/AgentTopNav";
 
 interface TalentRow {
   id: number;
@@ -45,7 +38,7 @@ function talentCategory(cats: string | null | undefined): string {
 }
 
 export default function AgentTalentsPage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [talents, setTalents] = useState<TalentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,55 +84,13 @@ export default function AgentTalentsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const isActive = tab.label === "Talents";
-                return (
-                  <Link
-                    key={tab.label}
-                    href={tab.href}
-                    className={`px-3 py-4 text-sm transition-colors relative ${
-                      isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                    }`}
-                  >
-                    {tab.label}
-                    {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">{user?.name || "—"}</span>
-            <button onClick={() => { logout(); router.push("/login"); }} className="text-gray-400 hover:text-gray-700 ml-1">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AgentTopNav active="Talents" />
 
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
         <div className="mb-10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/agent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
-              <ArrowLeft className="w-4 h-4" /> Dashboard
-            </Link>
-            <span className="h-4 w-px bg-gray-200" />
-            <div>
-              <h1 className="text-3xl font-semibold">Talents</h1>
-              <p className="text-gray-600 text-sm">Your managed talent roster.</p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-semibold">Talents</h1>
+            <p className="text-gray-600 text-sm">Your managed talent roster.</p>
           </div>
           <Link
             href="/add-new-talent"

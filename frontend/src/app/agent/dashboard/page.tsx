@@ -16,7 +16,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  User,
   Users,
   Clock,
   FileText,
@@ -26,7 +25,6 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  LogOut,
   Send,
   Plus,
   BarChart3,
@@ -38,6 +36,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
+import AgentTopNav from "@/components/AgentTopNav";
 import {
   getAgent,
   getAgentRequests,
@@ -87,18 +86,10 @@ interface RequestData {
 
 /* ---------- Constants ---------- */
 
-const NAV_TABS: { label: string; href: string }[] = [
-  { label: "Dashboard", href: "/agent/dashboard" },
-  { label: "Talents", href: "/agent/talents" },
-  { label: "Licenses", href: "/agent/licenses" },
-  { label: "Revenue", href: "/agent/billing" },
-  { label: "Messages", href: "/messages" },
-];
-
 /* ---------- Component ---------- */
 
 export default function AgentDashboardPage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState<AgentProfileData | null>(null);
@@ -195,11 +186,6 @@ export default function AgentDashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
-
   if (authLoading || loading || !user || user.role !== "agent") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -222,46 +208,7 @@ export default function AgentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ===== Top Nav Bar ===== */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const active = tab.href === "/agent/dashboard";
-                const common = `px-3 py-4 text-sm transition-colors relative ${
-                  active ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                }`;
-                return (
-                  <Link key={tab.label} href={tab.href} className={common}>
-                    {tab.label}
-                    {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">
-              {profile?.name || user?.name || "---"}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <AgentTopNav active="Dashboard" />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         <div className="mb-8">
