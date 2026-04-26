@@ -2,11 +2,11 @@
  * Talent Dashboard -- Manage digital likeness and incoming approvals.
  *
  * Layout (Figma):
- * - Top nav: FL logo (black square) + tabs (Dashboard, My Face, Licenses, Usage, Settings) + user avatar + logout
+ * - Top nav: FL logo (left) + centered tabs (Dashboard, My Face, Licenses, Usage, Billing, Messages) + user (right)
  * - 3-column grid (col-span-3 / col-span-6 / col-span-3)
- *   LEFT: My Face Profile, License Terms, Edit/Upload buttons, Connected Accounts
- *   CENTER: Onboarding banner, License Passports, License prefs, Incoming Requests
- *   RIGHT: Active Licenses, Revenue, Pending, Identity Certificate, AI Chat
+ *   LEFT: My Face Profile, License Terms, Min Price, Auto-Approve, Connected Accounts, Licensing Regions
+ *   CENTER: Onboarding banner, License Requests, Allowed Categories
+ *   RIGHT: Active Licenses, Revenue, Identity Certificate, Payment Method, Billing & Payouts
  *
  * Accessible at: /talent/dashboard (requires talent role)
  */
@@ -24,7 +24,6 @@ import {
   Upload,
   Edit3,
   ExternalLink,
-  LogOut,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -39,6 +38,7 @@ import {
   getEarnings,
 } from "@/lib/api";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
+import TalentTopNav from "@/components/TalentTopNav";
 
 /* ---------- Types ---------- */
 
@@ -109,20 +109,10 @@ const LICENSING_REGIONS = [
   "Australia",
 ];
 
-// Tabs with an href navigate to a separate page; tabs without stay in-page.
-const NAV_TABS: { label: string; href: string }[] = [
-  { label: "Dashboard", href: "/talent/dashboard" },
-  { label: "My Face", href: "/talent/my-face" },
-  { label: "Licenses", href: "/talent/licenses" },
-  { label: "Usage", href: "/talent/usage" },
-  { label: "Billing", href: "/talent/earnings" },
-  { label: "Messages", href: "/messages" },
-];
-
 /* ---------- Component ---------- */
 
 export default function TalentDashboardPage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState<TalentProfileData | null>(null);
@@ -314,11 +304,6 @@ export default function TalentDashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
-
   /* --- Derived stats --- */
 
   const activeLicenses = requests.filter(
@@ -373,51 +358,7 @@ export default function TalentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ===== Top Nav Bar ===== */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          {/* Left: Logo + Tabs */}
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const isActive = tab.href === "/talent/dashboard";
-                const className = `px-3 py-4 text-sm transition-colors relative ${
-                  isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                }`;
-                return (
-                  <Link key={tab.label} href={tab.href} className={className}>
-                    {tab.label}
-                    {isActive && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right: User avatar + logout */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">
-              {profile?.name || user?.name || "---"}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <TalentTopNav active="Dashboard" />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         {/* Page header (Figma: "Talent Dashboard") */}
@@ -559,6 +500,30 @@ export default function TalentDashboardPage() {
                       )
                     }
                   />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <span className="text-sm text-gray-900 block">Auto-Approve</span>
+                    <span className="text-xs text-gray-500">
+                      Automatically approve matches
+                    </span>
+                  </div>
+                  <Toggle
+                    enabled={approvalMode === "auto"}
+                    onToggle={() =>
+                      setApprovalMode(
+                        approvalMode === "auto" ? "manual" : "auto"
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-1">
+                  <span className="text-sm text-gray-900">Min Price / Use</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {"£"}{profile?.min_price_per_use?.toLocaleString() ?? "0"}
+                  </span>
                 </div>
               </div>
 
@@ -704,102 +669,6 @@ export default function TalentDashboardPage() {
               </div>
             )}
 
-            {/* License Passports */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                License Passports
-              </h3>
-              <p className="text-xs text-gray-500 mb-5">Allowed Campaigns</p>
-
-              {/* Category grid */}
-              <div className="grid grid-cols-2 gap-2.5 mb-6">
-                {AD_CATEGORIES.map((cat) => {
-                  const isAllowed = allowed.includes(cat);
-                  const isBlocked = blocked.includes(cat);
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => toggleCategory(cat)}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors text-left ${
-                        isBlocked
-                          ? "border-red-300 bg-red-50"
-                          : isAllowed
-                          ? "border-green-300 bg-green-50"
-                          : "border-gray-200 bg-white hover:bg-gray-50"
-                      }`}
-                    >
-                      <span
-                        className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center ${
-                          isBlocked
-                            ? "bg-red-200"
-                            : isAllowed
-                            ? "bg-green-200"
-                            : "bg-gray-200"
-                        }`}
-                      >
-                        {isAllowed && (
-                          <CheckCircle className="w-3 h-3 text-green-700" />
-                        )}
-                        {isBlocked && (
-                          <XCircle className="w-3 h-3 text-red-700" />
-                        )}
-                      </span>
-                      <span
-                        className={`text-xs ${
-                          isBlocked
-                            ? "line-through text-gray-500"
-                            : "text-gray-900"
-                        }`}
-                      >
-                        {cat}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Min price */}
-              <div className="border-t border-gray-200 pt-4 mb-5">
-                <p className="text-xs text-gray-500 mb-1">
-                  Minimum price per use
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {"\u00A3"}{profile?.min_price_per_use?.toLocaleString() ?? "0"}
-                </p>
-              </div>
-
-              {/* Auto-approve toggle */}
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <span className="text-sm text-gray-900 block">
-                    Auto-Approve
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    Automatically approve matching requests
-                  </span>
-                </div>
-                <Toggle
-                  enabled={approvalMode === "auto"}
-                  onToggle={() =>
-                    setApprovalMode(
-                      approvalMode === "auto" ? "manual" : "auto"
-                    )
-                  }
-                />
-              </div>
-
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save Preferences"}
-              </button>
-
-              <p className="text-xs text-gray-400 text-center mt-2">
-                Click a category to cycle: allowed &rarr; blocked &rarr; off
-              </p>
-            </div>
 
             {/* License Requests */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
@@ -929,10 +798,10 @@ export default function TalentDashboardPage() {
               )}
             </div>
 
-            {/* Category Permissions (inside CENTER col per Figma) */}
+            {/* Allowed Categories (Figma: Card 4 — Licensing Preferences / Categories) */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                Category Permissions
+                Allowed Categories
               </h3>
               <p className="text-xs text-gray-500 mb-4">
                 Tick the campaign categories you&apos;re open to. Unchecked

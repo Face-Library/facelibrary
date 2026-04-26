@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send, Loader2, MessageSquare } from "lucide-react";
+import { Send, Loader2, MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   listConversations,
@@ -12,12 +11,7 @@ import {
   type ConversationSummary,
   type Message,
 } from "@/lib/api";
-
-function dashboardFor(role: string | undefined): string {
-  if (role === "talent") return "/talent/dashboard";
-  if (role === "agent") return "/agent/dashboard";
-  return "/client/dashboard";
-}
+import RoleAwareTopNav from "@/components/RoleAwareTopNav";
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
@@ -138,20 +132,10 @@ export default function MessagesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
-          <Link
-            href={dashboardFor(user.role)}
-            className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm"
-          >
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="h-5 w-px bg-gray-200" />
-          <h1 className="text-lg font-semibold">Messages</h1>
-        </div>
-      </header>
+      <RoleAwareTopNav active="Messages" />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <h1 className="text-2xl font-semibold mb-4">Messages</h1>
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 bg-white border border-gray-200 rounded-2xl overflow-hidden min-h-[600px]">
           <aside className="border-r border-gray-200 bg-gray-50/60">
             <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between">

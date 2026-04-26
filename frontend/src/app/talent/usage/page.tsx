@@ -3,18 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, User, Loader2, ExternalLink, Eye, AlertTriangle, CheckCircle } from "lucide-react";
+import { Loader2, ExternalLink, Eye, AlertTriangle, CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { listTalents, getTalentRequests, getWatermarkByTalent } from "@/lib/api";
-
-const NAV_TABS = [
-  { label: "Dashboard", href: "/talent/dashboard" },
-  { label: "My Face", href: "/talent/my-face" },
-  { label: "Licenses", href: "/talent/licenses" },
-  { label: "Usage", href: "/talent/usage" },
-  { label: "Billing", href: "/talent/earnings" },
-  { label: "Messages", href: "/messages" },
-];
+import TalentTopNav from "@/components/TalentTopNav";
 
 interface LicenseRow {
   id: number;
@@ -75,7 +67,7 @@ function formatDurationRemaining(createdAt: string, durationDays?: number): stri
 }
 
 export default function TalentUsagePage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [active, setActive] = useState<LicenseRow[]>([]);
@@ -121,45 +113,17 @@ export default function TalentUsagePage() {
 
   const unauthorized = watermarks.filter((w) => !w.is_authorized);
 
+  if (authLoading || !user || user.role !== "talent") {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white">
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const isActive = tab.label === "Usage";
-                return (
-                  <Link
-                    key={tab.label}
-                    href={tab.href}
-                    className={`px-3 py-4 text-sm transition-colors relative ${
-                      isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                    }`}
-                  >
-                    {tab.label}
-                    {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">{user?.name || "—"}</span>
-            <button onClick={() => { logout(); router.push("/login"); }} className="text-gray-400 hover:text-gray-700 ml-1">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <TalentTopNav active="Usage" />
 
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
         <div className="mb-10">

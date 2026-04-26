@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Upload, LogOut, User, Loader2, CheckCircle,
+  Upload, User, Loader2, CheckCircle,
   Sun, Image as ImageIcon, Sparkles, Eye, Wind, Glasses, Smile,
   Shield, Play,
 } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   getTalentPortfolio, setTalentPortfolio,
 } from "@/lib/api";
 import { FIGMA_REFERENCE_IMAGES as REFERENCE_IMAGES } from "@/lib/figma-reference-images";
+import TalentTopNav from "@/components/TalentTopNav";
 
 /* ---------- Constants ---------- */
 
@@ -38,15 +39,6 @@ const GUIDELINES = [
   { icon: Smile, label: "Neutral Expression" },
 ];
 
-const NAV_TABS = [
-  { label: "Dashboard", href: "/talent/dashboard" },
-  { label: "My Face", href: "/talent/my-face" },
-  { label: "Licenses", href: "/talent/licenses" },
-  { label: "Usage", href: "/talent/usage" },
-  { label: "Billing", href: "/talent/earnings" },
-  { label: "Messages", href: "/messages" },
-];
-
 interface TalentProfile {
   id: number;
   user_id: number;
@@ -60,7 +52,7 @@ interface TalentProfile {
 /* ---------- Component ---------- */
 
 export default function TalentMyFacePage() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState<TalentProfile | null>(null);
@@ -185,7 +177,7 @@ export default function TalentMyFacePage() {
     }
   }
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "talent") {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -197,52 +189,10 @@ export default function TalentMyFacePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FL</span>
-              </div>
-            </Link>
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_TABS.map((tab) => {
-                const isActive = tab.label === "My Face";
-                return (
-                  <Link
-                    key={tab.label}
-                    href={tab.href}
-                    className={`px-3 py-4 text-sm transition-colors relative ${
-                      isActive ? "text-black font-medium" : "text-gray-500 hover:text-black"
-                    }`}
-                  >
-                    {tab.label}
-                    {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-medium text-gray-900">{user?.name || "—"}</span>
-            <button onClick={() => { logout(); router.push("/login"); }} className="text-gray-400 hover:text-gray-700 ml-1">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <TalentTopNav active="My Face" />
 
       <main className="max-w-[1400px] mx-auto px-6 lg:px-8 py-10">
         <div className="mb-10">
-          <div className="flex items-center gap-3 mb-2">
-            <Link href="/talent/dashboard" className="text-gray-500 hover:text-black inline-flex items-center gap-1 text-sm">
-              <ArrowLeft className="w-4 h-4" /> Dashboard
-            </Link>
-            <span className="h-4 w-px bg-gray-200" />
-          </div>
           <h1 className="text-3xl font-semibold mb-2">
             {hasAvatar ? "Your Digits" : "Upload Your Digits"}
           </h1>
